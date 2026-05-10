@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Map from '../components/Map.astro';
 import { places, googleMapsUrl, type Place } from '../data/places';
 
 export function getStaticPaths() {
@@ -73,6 +74,8 @@ const mapsUrl = googleMapsUrl(place);
         </a>
       </dd>
     </dl>
+
+    <Map places={[place]} className="h-72 mt-10" singleZoom={15} />
 
     <footer class="mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)]">
       <p>

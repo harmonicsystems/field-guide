@@ -1,0 +1,153 @@
+---
+import type { Place } from '../data/places';
+
+interface Props {
+  places: Place[];
+  className?: string;
+  singleZoom?: number;
+}
+
+const { places, className = 'h-80', singleZoom = 15 } = Astro.props;
+
+const points = places.map((p) => ({
+  slug: p.slug,
+  name: p.name,
+  town: p.town,
+  lat: p.lat,
+  lng: p.lng,
+}));
+---
+
+<div
+  class:list={['field-guide-map', className]}
+  data-points={JSON.stringify(points)}
+  data-single-zoom={singleZoom}
+  role="region"
+  aria-label={places.length === 1 ? `Map of ${places[0].name}` : 'Map of places in the field guide'}
+>
+</div>
+
+<script>
+  import L from 'leaflet';
+  import 'leaflet/dist/leaflet.css';
+
+  type Point = { slug: string; name: string; town: string; lat: number; lng: number };
+
+  document.querySelectorAll<HTMLElement>('.field-guide-map').forEach((el) => {
+    const points: Point[] = JSON.parse(el.dataset.points ?? '[]');
+    const singleZoom = Number(el.dataset.singleZoom ?? 15);
+    if (points.length === 0) return;
+
+    const map = L.map(el, {
+      zoomControl: true,
+      scrollWheelZoom: false,
+    });
+
+    L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19,
+      },
+    ).addTo(map);
+
+    const icon = L.divIcon({
+      className: 'fg-marker',
+      html: '',
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+      popupAnchor: [0, -8],
+    });
+
+    const markers = points.map((p) =>
+      L.marker([p.lat, p.lng], { icon, title: p.name }).bindPopup(
+        `<a class="fg-popup-link" href="/${p.slug}/"><strong>${p.name}</strong><span>${p.town}</span></a>`,
+      ),
+    );
+    const group = L.featureGroup(markers).addTo(map);
+
+    if (points.length === 1) {
+      map.setView([points[0].lat, points[0].lng], singleZoom);
+    } else {
+      map.fitBounds(group.getBounds(), { padding: [28, 28] });
+    }
+  });
+</script>
+
+<style is:global>
+  .field-guide-map {
+    border: 1px solid var(--color-rule);
+    background: var(--color-paper);
+  }
+
+  .fg-marker {
+    background: var(--color-accent);
+    border: 2px solid var(--color-paper);
+    border-radius: 9999px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  }
+
+  .leaflet-container {
+    font-family: var(--font-serif);
+    background: var(--color-paper);
+  }
+
+  .leaflet-popup-content-wrapper {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    border: 1px solid var(--color-rule);
+    border-radius: 2px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  }
+  .leaflet-popup-tip {
+    background: var(--color-paper);
+    border: 1px solid var(--color-rule);
+  }
+  .leaflet-popup-content {
+    margin: 10px 14px;
+    line-height: 1.4;
+  }
+  .leaflet-popup-content .fg-popup-link {
+    text-decoration: none;
+    color: var(--color-ink);
+    display: block;
+  }
+  .leaflet-popup-content .fg-popup-link strong {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .leaflet-popup-content .fg-popup-link span {
+    display: block;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-muted);
+    font-family: var(--font-sans);
+  }
+  .leaflet-popup-content .fg-popup-link:hover strong {
+    color: var(--color-accent);
+  }
+
+  .leaflet-control-attribution {
+    background: rgba(247, 244, 236, 0.85) !important;
+    color: var(--color-muted) !important;
+    font-family: var(--font-sans);
+    font-size: 10px !important;
+  }
+  .leaflet-control-attribution a {
+    color: var(--color-muted) !important;
+  }
+
+  .leaflet-bar a,
+  .leaflet-bar a:hover {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    border-color: var(--color-rule);
+  }
+  .leaflet-bar a:hover {
+    color: var(--color-accent);
+  }
+</style>

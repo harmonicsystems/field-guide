@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Map from '../components/Map.astro';
 import { places } from '../data/places';
 
 // Group by town for a quiet, scannable index.
@@ -25,6 +26,8 @@ const byTown = towns.map((town) => ({
         purpose. Everything here is somewhere I would actually go.
       </p>
     </header>
+
+    <Map places={places} className="h-80 mb-16" />
 
     {
       byTown.map(({ town, items }) => (
