@@ -1,0 +1,66 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { places } from '../data/places';
+
+// Group by town for a quiet, scannable index.
+const towns = Array.from(new Set(places.map((p) => p.town)));
+const byTown = towns.map((town) => ({
+  town,
+  items: places.filter((p) => p.town === town),
+}));
+---
+
+<Layout title="Field Guide — Kinderhook, NY">
+  <main class="max-w-2xl mx-auto px-6 py-16">
+    <header class="mb-16">
+      <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4">
+        A field guide
+      </p>
+      <h1 class="text-4xl md:text-5xl leading-tight mb-4">
+        Kinderhook<span class="text-[var(--color-muted)]">,</span> and the
+        places near it.
+      </h1>
+      <p class="text-lg text-[var(--color-muted)] leading-relaxed">
+        Kept by David Nyman, who lives in the village. The list is short on
+        purpose. Everything here is somewhere I would actually go.
+      </p>
+    </header>
+
+    {
+      byTown.map(({ town, items }) => (
+        <section class="mb-12">
+          <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4 pb-2 border-b border-[var(--color-rule)]">
+            {town}
+          </h2>
+          <ul class="space-y-3">
+            {items.map((p) => (
+              <li>
+                <a
+                  href={`/${p.slug}/`}
+                  class="block hover:text-[var(--color-accent)] transition-colors"
+                >
+                  <div class="flex items-baseline justify-between gap-4">
+                    <span class="text-lg">{p.name}</span>
+                    <span class="font-sans text-xs text-[var(--color-muted)] tabular-nums shrink-0">
+                      {p.category.split(' — ')[0]}
+                    </span>
+                  </div>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+
+    <footer class="mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)]">
+      <p>
+        A project of the
+        <a
+          href="https://feed-and-seed.com"
+          class="underline decoration-[var(--color-rule)]">Feed and Seed</a
+        >, a barn workspace in Kinderhook, NY.
+      </p>
+    </footer>
+  </main>
+</Layout>

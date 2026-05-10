@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* The surface. Quiet, hand-set, made for reading. */
+@theme {
+  --font-serif: "Iowan Old Style", "Palatino", "Palatino Linotype", "Georgia", serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-paper: #f7f4ec;
+  --color-ink: #1c1c1a;
+  --color-muted: #6b6960;
+  --color-rule: #d9d4c5;
+  --color-accent: #3d5a3d;
+}
+
+html {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-serif);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}

@@ -1,0 +1,83 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { places, googleMapsUrl, type Place } from '../data/places';
+
+export function getStaticPaths() {
+  return places.map((place) => ({
+    params: { slug: place.slug },
+    props: { place },
+  }));
+}
+
+interface Props {
+  place: Place;
+}
+
+const { place } = Astro.props;
+const mapsUrl = googleMapsUrl(place);
+---
+
+<Layout
+  title={`${place.name} — Field Guide`}
+  description={`${place.name} in ${place.town}. ${place.category}.`}
+>
+  <main class="max-w-2xl mx-auto px-6 py-16">
+    <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-6">
+      <a href="/" class="hover:text-[var(--color-ink)]">← Field Guide</a>
+    </p>
+
+    <header class="mb-12">
+      <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-3">
+        {place.town}
+      </p>
+      <h1 class="text-4xl md:text-5xl leading-tight mb-4">{place.name}</h1>
+      <p class="text-lg text-[var(--color-muted)]">{place.category}</p>
+    </header>
+
+    {
+      place.notes ? (
+        <div class="prose prose-lg mb-12 leading-relaxed text-[var(--color-ink)]">
+          <p>{place.notes}</p>
+        </div>
+      ) : (
+        <p class="text-[var(--color-muted)] italic mb-12">
+          (Notes coming soon.)
+        </p>
+      )
+    }
+
+    <dl class="font-sans text-sm grid grid-cols-[max-content_1fr] gap-x-6 gap-y-3 border-t border-[var(--color-rule)] pt-6">
+      <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">Address</dt>
+      <dd>{place.address}</dd>
+
+      <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">Hours</dt>
+      <dd>{place.hours}</dd>
+
+      {
+        place.phone && (
+          <>
+            <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">
+              Phone
+            </dt>
+            <dd>
+              <a href={`tel:${place.phone.replace(/\s/g, '')}`}>{place.phone}</a>
+            </dd>
+          </>
+        )
+      }
+
+      <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">Map</dt>
+      <dd>
+        <a href={mapsUrl} target="_blank" rel="noopener" class="underline decoration-[var(--color-rule)]">
+          Open in Google Maps
+        </a>
+      </dd>
+    </dl>
+
+    <footer class="mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)]">
+      <p>
+        <a href="/" class="underline decoration-[var(--color-rule)]">← Back to the field guide</a>
+      </p>
+    </footer>
+  </main>
+</Layout>
