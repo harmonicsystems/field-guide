@@ -27,7 +27,11 @@ const byTown = towns.map((town) => ({
       </p>
     </header>
 
-    <Map places={places} className="h-80 mb-16" />
+    <Map places={places} className="h-80 mb-6" />
+
+    <p class="font-sans text-xs uppercase tracking-[0.2em] mb-16 text-[var(--color-muted)]">
+      <a href="/open/" class="hover:text-[var(--color-accent)]">What's open today →</a>
+    </p>
 
     {
       byTown.map(({ town, items }) => (

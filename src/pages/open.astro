@@ -1,0 +1,292 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { places, dayKeys, dayLabels, type DayKey } from '../data/places';
+
+const RANGE_START_MIN = 6 * 60;
+const RANGE_END_MIN = 24 * 60;
+const RANGE_TOTAL = RANGE_END_MIN - RANGE_START_MIN;
+
+const ticks = [
+  { hour: 6, label: '6a' },
+  { hour: 9, label: '9a' },
+  { hour: 12, label: '12' },
+  { hour: 15, label: '3p' },
+  { hour: 18, label: '6p' },
+  { hour: 21, label: '9p' },
+  { hour: 24, label: '12a' },
+];
+
+function timeToMin(s: string): number {
+  const [h, m] = s.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function pct(min: number): number {
+  return ((min - RANGE_START_MIN) / RANGE_TOTAL) * 100;
+}
+
+function fmt(s: string): string {
+  const [h, m] = s.split(':').map(Number);
+  const period = h >= 12 ? 'p' : 'a';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return m === 0 ? `${h12}${period}` : `${h12}:${m.toString().padStart(2, '0')}${period}`;
+}
+
+const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
+---
+
+<Layout title="What's open — Field Guide">
+  <main class="max-w-4xl mx-auto px-6 py-16">
+    <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-6">
+      <a href="/" class="hover:text-[var(--color-ink)]">← Field Guide</a>
+    </p>
+
+    <header class="mb-12">
+      <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4">
+        What's open
+      </p>
+      <h1 class="text-4xl md:text-5xl leading-tight mb-4">By the day.</h1>
+      <p class="text-lg text-[var(--color-muted)] leading-relaxed">
+        Pick a day. Each row is one place; the bar shows when it's open.
+        Hours are best-effort and can drift seasonally.
+      </p>
+    </header>
+
+    <nav
+      class="schedule-tabs font-sans text-sm uppercase tracking-[0.15em] flex flex-wrap gap-x-6 gap-y-2 mb-6 pb-4 border-b border-[var(--color-rule)]"
+      aria-label="Choose a day"
+    >
+      {
+        dayKeys.map((key) => (
+          <button
+            type="button"
+            data-day-tab={key}
+            class="schedule-tab text-[var(--color-muted)] hover:text-[var(--color-ink)] transition-colors"
+          >
+            {dayLabels[key].short}
+          </button>
+        ))
+      }
+    </nav>
+
+    <div class="schedule-scale relative font-sans text-xs text-[var(--color-muted)] tabular-nums mb-3 ml-[12rem] hidden sm:block" aria-hidden="true">
+      <div class="relative h-4">
+        {
+          ticks.map(({ hour, label }) => {
+            const left = ((hour * 60 - RANGE_START_MIN) / RANGE_TOTAL) * 100;
+            return (
+              <span
+                class="absolute -translate-x-1/2"
+                style={`left:${left}%`}
+              >
+                {label}
+              </span>
+            );
+          })
+        }
+      </div>
+    </div>
+
+    {
+      dayKeys.map((dayKey) => (
+        <section
+          data-day-panel={dayKey}
+          class="schedule-panel"
+          aria-labelledby={`day-heading-${dayKey}`}
+        >
+          <h2
+            id={`day-heading-${dayKey}`}
+            class="schedule-day-heading font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4 pb-2 border-b border-[var(--color-rule)]"
+          >
+            {dayLabels[dayKey].long}
+          </h2>
+
+          <ul class="space-y-1">
+            {sortedPlaces.map((p) => {
+              const day = p.schedule[dayKey];
+              const isAppt = day === 'appt';
+              const isClosed = !isAppt && day.length === 0;
+              const blocks = isAppt || isClosed ? [] : day;
+              const titleSummary = isAppt
+                ? 'By appointment'
+                : isClosed
+                  ? 'Closed'
+                  : blocks.map((b) => `${fmt(b.open)}–${fmt(b.close)}`).join(', ');
+
+              return (
+                <li class="schedule-row grid grid-cols-1 sm:grid-cols-[12rem_1fr] sm:gap-4 sm:items-center py-2">
+                  <a
+                    href={`/${p.slug}/`}
+                    class="schedule-name text-base hover:text-[var(--color-accent)] transition-colors"
+                  >
+                    {p.name}
+                  </a>
+                  <div
+                    class:list={[
+                      'schedule-track relative h-6 mt-1 sm:mt-0',
+                      isClosed && 'is-closed',
+                    ]}
+                    title={titleSummary}
+                    role="img"
+                    aria-label={`${p.name}: ${titleSummary}`}
+                  >
+                    {isAppt ? (
+                      <div class="schedule-appt absolute inset-0">
+                        <span class="schedule-label">by appointment</span>
+                      </div>
+                    ) : isClosed ? (
+                      <span class="schedule-label schedule-closed">closed</span>
+                    ) : (
+                      blocks.map((b) => {
+                        const left = pct(timeToMin(b.open));
+                        const width = pct(timeToMin(b.close)) - left;
+                        return (
+                          <div
+                            class="schedule-bar absolute"
+                            style={`left:${left}%;width:${width}%`}
+                          >
+                            <span class="schedule-bar-label">
+                              {fmt(b.open)}–{fmt(b.close)}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))
+    }
+
+    <footer class="mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)]">
+      <p>
+        <a href="/" class="underline decoration-[var(--color-rule)]">← Back to the field guide</a>
+      </p>
+    </footer>
+  </main>
+</Layout>
+
+<script>
+  const tabs = document.querySelectorAll<HTMLButtonElement>('[data-day-tab]');
+  const panels = document.querySelectorAll<HTMLElement>('[data-day-panel]');
+  const dayFromGetDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+  function setActive(day: string) {
+    tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.dayTab === day));
+    panels.forEach((p) => p.classList.toggle('is-active', p.dataset.dayPanel === day));
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('day', day);
+      history.replaceState(null, '', url.toString());
+    } catch {}
+  }
+
+  tabs.forEach((t) =>
+    t.addEventListener('click', () => {
+      const k = t.dataset.dayTab;
+      if (k) setActive(k);
+    }),
+  );
+
+  document.documentElement.classList.add('schedule-js');
+
+  const urlDay = new URL(window.location.href).searchParams.get('day');
+  const today = dayFromGetDay[new Date().getDay()];
+  const initial =
+    urlDay && (dayFromGetDay as readonly string[]).includes(urlDay) ? urlDay : today;
+  setActive(initial);
+</script>
+
+<style>
+  /* No-JS fallback: stack all 7 days. JS-enabled: only show the active panel. */
+  :global(html.schedule-js) .schedule-panel { display: none; }
+  :global(html.schedule-js) .schedule-panel.is-active { display: block; }
+  :global(html.schedule-js) .schedule-day-heading { display: none; }
+  :global(html.schedule-js) .schedule-tabs { display: flex; }
+  :global(html:not(.schedule-js)) .schedule-tabs { display: none; }
+  .schedule-panel { margin-bottom: 3rem; }
+  :global(html.schedule-js) .schedule-panel { margin-bottom: 0; }
+
+  .schedule-tab {
+    padding-bottom: 0.25rem;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    background: none;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    font: inherit;
+    letter-spacing: inherit;
+  }
+  .schedule-tab.is-active {
+    color: var(--color-ink);
+    border-bottom-color: var(--color-accent);
+  }
+
+  .schedule-row {
+    border-bottom: 1px dotted var(--color-rule);
+  }
+  .schedule-row:last-child {
+    border-bottom: 0;
+  }
+
+  .schedule-track {
+    background-color: rgba(217, 212, 197, 0.18);
+    border-left: 1px solid var(--color-rule);
+    border-right: 1px solid var(--color-rule);
+  }
+
+  .schedule-bar {
+    top: 0;
+    bottom: 0;
+    background: var(--color-accent);
+    opacity: 0.85;
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  .schedule-bar-label {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--color-paper);
+    line-height: 1.5rem;
+    padding: 0 6px;
+    white-space: nowrap;
+    letter-spacing: 0.04em;
+  }
+
+  .schedule-appt {
+    background-image: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 3px,
+      var(--color-rule) 3px,
+      var(--color-rule) 6px
+    );
+    display: flex;
+    align-items: center;
+    padding-left: 0.75rem;
+  }
+
+  .schedule-label {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-muted);
+  }
+
+  .schedule-closed {
+    line-height: 1.5rem;
+    padding-left: 0.75rem;
+  }
+
+  .schedule-track.is-closed {
+    background-color: transparent;
+    border-color: transparent;
+  }
+</style>
