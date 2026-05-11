@@ -10,17 +10,42 @@ const {
   title,
   description = 'A field guide to Kinderhook, NY and the small places nearby — by David Nyman, who lives in the village.',
 } = Astro.props;
+
+const siteUrl = Astro.site ?? new URL('https://field-guide.feed-and-seed.com');
+const canonical = new URL(Astro.url.pathname, siteUrl).toString();
+const ogImage = new URL('/og.svg', siteUrl).toString();
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate" type="application/json" title="Field Guide — places (JSON)" href="/places.json" />
+    <link rel="alternate" type="text/markdown" title="Field Guide — LLM index" href="/llms.txt" />
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap-index.xml" />
+    <link rel="preconnect" href="https://basemaps.cartocdn.com" crossorigin />
+    <meta name="theme-color" content="#f7f4ec" />
+    <meta name="generator" content={Astro.generator} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Field Guide" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:locale" content="en_US" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <slot name="head" />
   </head>
   <body>
     <slot />

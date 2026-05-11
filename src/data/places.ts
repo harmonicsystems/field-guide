@@ -26,6 +26,20 @@ export function dayKeyFromDate(d: Date): DayKey {
 
 const at = (open: string, close: string): TimeBlock => ({ open, close });
 
+/** schema.org type. Refined per place; defaults to LocalBusiness. */
+export type SchemaType =
+  | 'LocalBusiness'
+  | 'Restaurant'
+  | 'CafeOrCoffeeShop'
+  | 'Bakery'
+  | 'BarOrPub'
+  | 'Winery'
+  | 'Store'
+  | 'GroceryStore'
+  | 'BookStore'
+  | 'ArtGallery'
+  | 'Library';
+
 export interface Place {
   slug: string;
   name: string;
@@ -35,6 +49,7 @@ export interface Place {
   phone: string | null;
   hours: string;
   schedule: Schedule;
+  schemaType: SchemaType;
   placeId: string;
   lat: number;
   lng: number;
@@ -43,9 +58,120 @@ export interface Place {
   notes: string;
 }
 
+const dayToSchemaDay: Record<DayKey, string> = {
+  mon: 'Monday',
+  tue: 'Tuesday',
+  wed: 'Wednesday',
+  thu: 'Thursday',
+  fri: 'Friday',
+  sat: 'Saturday',
+  sun: 'Sunday',
+};
+
+/** Parse "3 Albany Ave, Kinderhook, NY 12106" → PostalAddress LD shape. */
+export function parseAddressLD(addr: string) {
+  const parts = addr.split(',').map((s) => s.trim());
+  const stateZip = parts[parts.length - 1] ?? '';
+  const addressLocality = parts[parts.length - 2] ?? '';
+  const streetAddress = parts.slice(0, -2).join(', ');
+  const [addressRegion = '', postalCode = ''] = stateZip.split(/\s+/);
+  return {
+    '@type': 'PostalAddress' as const,
+    streetAddress,
+    addressLocality,
+    addressRegion,
+    postalCode,
+    addressCountry: 'US',
+  };
+}
+
+export function placeOpeningHoursLD(p: Place) {
+  const specs: Array<Record<string, string>> = [];
+  for (const day of dayKeys) {
+    const d = p.schedule[day];
+    if (d === 'appt') continue;
+    for (const block of d) {
+      specs.push({
+        '@type': 'OpeningHoursSpecification',
+        dayOfWeek: `https://schema.org/${dayToSchemaDay[day]}`,
+        opens: block.open,
+        closes: block.close,
+      });
+    }
+  }
+  return specs;
+}
+
+export function placeLD(p: Place, baseUrl: string) {
+  const url = `${baseUrl}/${p.slug}/`;
+  const description = p.notes ? p.notes : `${p.category}. ${p.town}.`;
+  const ld: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': p.schemaType,
+    '@id': url,
+    name: p.name,
+    description,
+    url,
+    address: parseAddressLD(p.address),
+    geo: {
+      '@type': 'GeoCoordinates',
+      latitude: p.lat,
+      longitude: p.lng,
+    },
+    sameAs: [googleMapsUrl(p)],
+  };
+  if (p.phone) ld.telephone = p.phone;
+  const hours = placeOpeningHoursLD(p);
+  if (hours.length > 0) ld.openingHoursSpecification = hours;
+  return ld;
+}
+
+export function breadcrumbLD(p: Place, baseUrl: string) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Field Guide',
+        item: `${baseUrl}/`,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: p.name,
+      },
+    ],
+  };
+}
+
+export function collectionLD(allPlaces: Place[], baseUrl: string) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    '@id': `${baseUrl}/`,
+    url: `${baseUrl}/`,
+    name: 'Field Guide — Kinderhook, NY',
+    description:
+      'A curated field guide to Kinderhook, NY and the small places nearby — by David Nyman, who lives in the village.',
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: allPlaces.length,
+      itemListElement: allPlaces.map((p, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        url: `${baseUrl}/${p.slug}/`,
+        name: p.name,
+      })),
+    },
+  };
+}
+
 export const places: Place[] = [
   {
     slug: 'hamrahs',
+    schemaType: 'Restaurant',
     name: "Hamrah's Lebanese Foods",
     category: 'Food — Lebanese / takeaway',
     town: 'Kinderhook, NY',
@@ -69,6 +195,7 @@ export const places: Place[] = [
   },
   {
     slug: 'samascotts',
+    schemaType: 'Store',
     name: "Samascott's Garden Market",
     category: 'Market — nursery / farm market / ice cream',
     town: 'Kinderhook, NY',
@@ -92,6 +219,7 @@ export const places: Place[] = [
   },
   {
     slug: 'greenhouse-cidery',
+    schemaType: 'Winery',
     name: 'The Greenhouse Cidery',
     category: 'Drink — cidery / Thai food / outdoor',
     town: 'Chatham, NY',
@@ -115,6 +243,7 @@ export const places: Place[] = [
   },
   {
     slug: 'chatham-berry-farm',
+    schemaType: 'LocalBusiness',
     name: 'The Chatham Berry Farm',
     category: 'Farm / market / pick-your-own',
     town: 'Chatham, NY',
@@ -138,6 +267,7 @@ export const places: Place[] = [
   },
   {
     slug: 'feast-and-floret',
+    schemaType: 'Restaurant',
     name: 'feast & floret',
     category: 'Food — Italian / dinner / florist',
     town: 'Hudson, NY',
@@ -161,6 +291,7 @@ export const places: Place[] = [
   },
   {
     slug: 'antique-warehouse',
+    schemaType: 'Store',
     name: 'The Antique Warehouse',
     category: 'Shopping — antiques / vintage',
     town: 'Hudson, NY',
@@ -184,6 +315,7 @@ export const places: Place[] = [
   },
   {
     slug: 'quinnies',
+    schemaType: 'CafeOrCoffeeShop',
     name: "Quinnie's",
     category: 'Food — café / bar / playground',
     town: 'Hudson, NY (Rt 66)',
@@ -207,6 +339,7 @@ export const places: Place[] = [
   },
   {
     slug: 'ten-barn-farm',
+    schemaType: 'Restaurant',
     name: 'Ten Barn Farm (The Kitchen)',
     category: 'Farm — Sunday brunch / chickens & goats / creek',
     town: 'Ghent, NY',
@@ -230,6 +363,7 @@ export const places: Place[] = [
   },
   {
     slug: 'art-omi',
+    schemaType: 'ArtGallery',
     name: 'Art Omi',
     category: 'Arts — outdoor sculpture park (120 acres)',
     town: 'Ghent, NY',
@@ -253,6 +387,7 @@ export const places: Place[] = [
   },
   {
     slug: 'bartlett-house',
+    schemaType: 'Bakery',
     name: 'Bartlett House',
     category: 'Food — bakery / café / brunch',
     town: 'Ghent, NY',
@@ -276,6 +411,7 @@ export const places: Place[] = [
   },
   {
     slug: 'hudson-chatham-winery',
+    schemaType: 'Winery',
     name: 'Hudson Chatham Winery',
     category: 'Drink — winery / chickens / fire pits',
     town: 'Ghent, NY',
@@ -299,6 +435,7 @@ export const places: Place[] = [
   },
   {
     slug: 'rebus',
+    schemaType: 'Store',
     name: 'Rebus',
     category: "Shopping — children's clothing & toys (curated)",
     town: 'Hudson, NY',
@@ -322,6 +459,7 @@ export const places: Place[] = [
   },
   {
     slug: 'kinderhook-books',
+    schemaType: 'BookStore',
     name: 'Kinderhook Books',
     category: 'Shopping — bookstore / wine bar',
     town: 'Kinderhook, NY',
@@ -345,6 +483,7 @@ export const places: Place[] = [
   },
   {
     slug: 'broad-street-bagel',
+    schemaType: 'Bakery',
     name: 'Broad Street Bagel Co.',
     category: 'Food — bagels / café',
     town: 'Kinderhook, NY',
@@ -368,6 +507,7 @@ export const places: Place[] = [
   },
   {
     slug: 'kinderhook-library',
+    schemaType: 'Library',
     name: 'Kinderhook Memorial Library',
     category: 'Civic — public library / kids programs',
     town: 'Kinderhook, NY',
@@ -391,6 +531,7 @@ export const places: Place[] = [
   },
   {
     slug: 'jack-shainman',
+    schemaType: 'ArtGallery',
     name: 'The School — Jack Shainman Gallery',
     category: 'Arts — contemporary art gallery',
     town: 'Kinderhook, NY',
@@ -414,6 +555,7 @@ export const places: Place[] = [
   },
   {
     slug: 'saisonnier',
+    schemaType: 'BarOrPub',
     name: 'Saisonnier',
     category: 'Food — beer bar / grilled cheese / tinned fish',
     town: 'Kinderhook, NY',
@@ -437,6 +579,7 @@ export const places: Place[] = [
   },
   {
     slug: 'super-stories',
+    schemaType: 'LocalBusiness',
     name: 'Super-Stories',
     category: "Arts — kids' art studio / Saturday drop-ins",
     town: 'Kinderhook, NY',
@@ -460,6 +603,7 @@ export const places: Place[] = [
   },
   {
     slug: 'tierra-farm',
+    schemaType: 'Store',
     name: 'Tierra Farm',
     category: 'Market — coffee roastery / nuts & dried fruit',
     town: 'Valatie, NY',
@@ -483,6 +627,7 @@ export const places: Place[] = [
   },
   {
     slug: 'hannaford',
+    schemaType: 'GroceryStore',
     name: 'Hannaford Supermarket',
     category: 'Market — full grocery',
     town: 'Valatie, NY',
@@ -506,6 +651,7 @@ export const places: Place[] = [
   },
   {
     slug: 'ocean-state-job-lot',
+    schemaType: 'Store',
     name: 'Ocean State Job Lot',
     category: 'Shopping — discount / household / garden',
     town: 'Valatie, NY',
@@ -529,6 +675,7 @@ export const places: Place[] = [
   },
   {
     slug: 'john-doe-records',
+    schemaType: 'Store',
     name: 'John Doe Records and Books',
     category: 'Shopping — records / books / curiosities',
     town: 'Hudson, NY',
@@ -552,6 +699,7 @@ export const places: Place[] = [
   },
   {
     slug: 'mel-the-bakery',
+    schemaType: 'Bakery',
     name: 'Mel The Bakery',
     category: 'Food — bakery / pastries / sandwiches',
     town: 'Hudson, NY',

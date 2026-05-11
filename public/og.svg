@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f7f4ec"/>
+  <line x1="80" y1="160" x2="1120" y2="160" stroke="#d9d4c5" stroke-width="1"/>
+  <line x1="80" y1="540" x2="1120" y2="540" stroke="#d9d4c5" stroke-width="1"/>
+  <text x="80" y="132" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" fill="#6b6960" letter-spacing="6">A FIELD GUIDE</text>
+  <text x="80" y="295" font-family="'Iowan Old Style', Palatino, 'Palatino Linotype', Georgia, serif" font-size="108" fill="#1c1c1a">Kinderhook,</text>
+  <text x="80" y="425" font-family="'Iowan Old Style', Palatino, 'Palatino Linotype', Georgia, serif" font-size="108" fill="#1c1c1a">and nearby.</text>
+  <text x="80" y="582" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="20" fill="#6b6960">field-guide.feed-and-seed.com</text>
+</svg>

@@ -35,7 +35,10 @@ function fmt(s: string): string {
 const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
 ---
 
-<Layout title="What's open — Field Guide">
+<Layout
+  title="What's open — Field Guide"
+  description="A Gantt-style view of when each place is open through the week — Kinderhook, NY and nearby."
+>
   <main class="max-w-4xl mx-auto px-6 py-16">
     <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-6">
       <a href="/" class="hover:text-[var(--color-ink)]">← Field Guide</a>
@@ -114,7 +117,10 @@ const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
                   : blocks.map((b) => `${fmt(b.open)}–${fmt(b.close)}`).join(', ');
 
               return (
-                <li class="schedule-row grid grid-cols-1 sm:grid-cols-[12rem_1fr] sm:gap-4 sm:items-center py-2">
+                <li
+                  id={`${dayKey}-${p.slug}`}
+                  class="schedule-row grid grid-cols-1 sm:grid-cols-[12rem_1fr] sm:gap-4 sm:items-center py-2"
+                >
                   <a
                     href={`/${p.slug}/`}
                     class="schedule-name text-base hover:text-[var(--color-accent)] transition-colors"

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://field-guide.feed-and-seed.com/sitemap-index.xml

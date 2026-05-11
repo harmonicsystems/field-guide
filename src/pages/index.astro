@@ -1,17 +1,27 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Map from '../components/Map.astro';
-import { places } from '../data/places';
+import { places, collectionLD } from '../data/places';
 
-// Group by town for a quiet, scannable index.
 const towns = Array.from(new Set(places.map((p) => p.town)));
 const byTown = towns.map((town) => ({
   town,
   items: places.filter((p) => p.town === town),
 }));
+
+const siteUrl = Astro.site ?? new URL('https://field-guide.feed-and-seed.com');
+const base = siteUrl.toString().replace(/\/$/, '');
+const ld = collectionLD(places, base);
 ---
 
 <Layout title="Field Guide — Kinderhook, NY">
+  <script
+    slot="head"
+    type="application/ld+json"
+    is:inline
+    set:html={JSON.stringify(ld)}
+  />
+
   <main class="max-w-2xl mx-auto px-6 py-16">
     <header class="mb-16">
       <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4">
