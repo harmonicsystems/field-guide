@@ -26,6 +26,7 @@ export const GET: APIRoute = ({ site }) => {
   lines.push('## Tools');
   lines.push('');
   lines.push(`- [What's open by day](${base}/open/): Weekly hours rendered as a Gantt chart, one row per place.`);
+  lines.push(`- [What's happening (calendar)](${base}/calendar/): Curated events viewable by month, week, weekend, or day.`);
   lines.push(`- [Machine-readable data](${base}/places.json): All 23 entries as structured JSON, including coordinates, structured schedules, and Google Place IDs.`);
   lines.push(`- [Sitemap](${base}/sitemap-index.xml): All indexable URLs.`);
   lines.push('');

@@ -1,0 +1,757 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { events, eventsInRange, type FieldEvent, type EventOccurrence } from '../data/events';
+import { places } from '../data/places';
+
+const buildNow = new Date();
+const sixty = new Date(buildNow.getTime() + 60 * 24 * 60 * 60 * 1000);
+const upcoming = eventsInRange(events, buildNow, sixty).slice(0, 20);
+
+const slimPlaces = places.map((p) => ({ slug: p.slug, name: p.name, town: p.town }));
+
+function fmtDate(d: Date): string {
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+function fmtTime(d: Date): string {
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const period = h >= 12 ? 'p' : 'a';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2, '0')}${period}`;
+}
+function eventHref(e: FieldEvent): string | null {
+  if (e.url) return e.url;
+  if (e.placeSlug) return `/${e.placeSlug}/`;
+  return null;
+}
+function eventLocation(e: FieldEvent): string {
+  if (e.placeSlug) {
+    const p = places.find((pp) => pp.slug === e.placeSlug);
+    if (p) return p.name;
+  }
+  return e.locationOverride ?? '';
+}
+---
+
+<Layout
+  title="Calendar — Field Guide"
+  description="What's happening in and around Kinderhook, NY — by month, week, weekend, or day."
+>
+  <main class="max-w-5xl mx-auto px-6 py-16">
+    <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-6">
+      <a href="/" class="hover:text-[var(--color-ink)]">← Field Guide</a>
+    </p>
+
+    <header class="mb-12">
+      <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4">
+        Calendar
+      </p>
+      <h1 class="text-4xl md:text-5xl leading-tight mb-4">What's happening.</h1>
+      <p class="text-lg text-[var(--color-muted)] leading-relaxed">
+        Events in and around Kinderhook. View by month, week, weekend, or day.
+      </p>
+    </header>
+
+    <nav
+      class="calendar-tabs font-sans text-sm uppercase tracking-[0.15em] flex flex-wrap gap-x-6 gap-y-2 mb-4 pb-3 border-b border-[var(--color-rule)]"
+      aria-label="Choose a view"
+    >
+      <button type="button" data-view="month" class="calendar-tab">Month</button>
+      <button type="button" data-view="week" class="calendar-tab">Week</button>
+      <button type="button" data-view="weekend" class="calendar-tab">Weekend</button>
+      <button type="button" data-view="day" class="calendar-tab">Day</button>
+    </nav>
+
+    <nav class="calendar-nav font-sans text-sm" aria-label="Navigate dates">
+      <button type="button" data-nav="prev" aria-label="Previous">←</button>
+      <span class="calendar-period" data-period>—</span>
+      <button type="button" data-nav="today">Today</button>
+      <button type="button" data-nav="next" aria-label="Next">→</button>
+    </nav>
+
+    <section data-calendar-content aria-live="polite">
+      <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4 pb-2 border-b border-[var(--color-rule)]">
+        Upcoming
+      </h2>
+      {
+        upcoming.length === 0 ? (
+          <p class="text-[var(--color-muted)] italic py-8">No events on the horizon. Check back soon.</p>
+        ) : (
+          <ul class="space-y-6">
+            {upcoming.map((occ: EventOccurrence) => {
+              const href = eventHref(occ.event);
+              const loc = eventLocation(occ.event);
+              const time = occ.allDay
+                ? 'All day'
+                : occ.end
+                  ? `${fmtTime(occ.start)}–${fmtTime(occ.end)}`
+                  : fmtTime(occ.start);
+              const body = (
+                <>
+                  <div class="font-sans text-xs uppercase tracking-[0.15em] text-[var(--color-muted)]">
+                    {fmtDate(occ.start)} · {time}
+                  </div>
+                  <div class="text-lg mt-1">{occ.event.title}</div>
+                  {loc && (
+                    <div class="font-sans text-xs text-[var(--color-muted)] mt-1">{loc}</div>
+                  )}
+                  {occ.event.description && (
+                    <p class="text-sm text-[var(--color-muted)] mt-2 leading-relaxed">
+                      {occ.event.description}
+                    </p>
+                  )}
+                </>
+              );
+              return (
+                <li class="border-l-2 border-[var(--color-accent)] pl-4">
+                  {href ? (
+                    <a href={href} class="block hover:text-[var(--color-accent)] transition-colors">
+                      {body}
+                    </a>
+                  ) : (
+                    body
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )
+      }
+    </section>
+
+    <script type="application/json" id="calendar-events" is:inline set:html={JSON.stringify(events)} />
+    <script type="application/json" id="calendar-places" is:inline set:html={JSON.stringify(slimPlaces)} />
+
+    <footer class="mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)]">
+      <p>
+        <a href="/" class="underline decoration-[var(--color-rule)]">← Back to the field guide</a>
+      </p>
+    </footer>
+  </main>
+</Layout>
+
+<script>
+  import {
+    eventsInRange,
+    parseEventDate,
+    type FieldEvent,
+    type EventOccurrence,
+  } from '../data/events';
+
+  type View = 'month' | 'week' | 'weekend' | 'day';
+  type PlaceRef = { slug: string; name: string; town: string };
+
+  const rawEvents: FieldEvent[] = JSON.parse(
+    document.getElementById('calendar-events')!.textContent || '[]',
+  );
+  const placesArr: PlaceRef[] = JSON.parse(
+    document.getElementById('calendar-places')!.textContent || '[]',
+  );
+  const placesIndex = new Map(placesArr.map((p) => [p.slug, p]));
+
+  const contentEl = document.querySelector<HTMLElement>('[data-calendar-content]')!;
+  const periodEl = document.querySelector<HTMLElement>('[data-period]')!;
+  const viewButtons = document.querySelectorAll<HTMLButtonElement>('[data-view]');
+  const navButtons = document.querySelectorAll<HTMLButtonElement>('[data-nav]');
+
+  let currentView: View = 'month';
+  let focalDate = startOfDay(new Date());
+
+  function startOfDay(d: Date): Date {
+    const r = new Date(d);
+    r.setHours(0, 0, 0, 0);
+    return r;
+  }
+  function endOfDay(d: Date): Date {
+    const r = new Date(d);
+    r.setHours(23, 59, 59, 999);
+    return r;
+  }
+  function addDays(d: Date, n: number): Date {
+    const r = new Date(d);
+    r.setDate(r.getDate() + n);
+    return r;
+  }
+  function startOfWeek(d: Date): Date {
+    const r = startOfDay(d);
+    r.setDate(r.getDate() - r.getDay());
+    return r;
+  }
+  function startOfMonth(d: Date): Date {
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+  function isSameDay(a: Date, b: Date): boolean {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  }
+  function isoDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  function fmtTime(d: Date): string {
+    const h = d.getHours();
+    const m = d.getMinutes();
+    const period = h >= 12 ? 'p' : 'a';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2, '0')}${period}`;
+  }
+  function fmtRange(occ: EventOccurrence): string {
+    if (occ.allDay) return 'All day';
+    return occ.end ? `${fmtTime(occ.start)}–${fmtTime(occ.end)}` : fmtTime(occ.start);
+  }
+  function escapeHtml(s: string): string {
+    return s.replace(/[&<>"']/g, (c) =>
+      c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;',
+    );
+  }
+  function eventHref(e: FieldEvent): string | null {
+    if (e.url) return e.url;
+    if (e.placeSlug && placesIndex.has(e.placeSlug)) return `/${e.placeSlug}/`;
+    return null;
+  }
+  function eventLocation(e: FieldEvent): string {
+    if (e.placeSlug) {
+      const p = placesIndex.get(e.placeSlug);
+      if (p) return p.name;
+    }
+    return e.locationOverride ?? '';
+  }
+  function findWeekend(d: Date): Date {
+    const day = d.getDay();
+    const fridayOffset =
+      day === 0 ? -2 : day === 6 ? -1 : day === 5 ? 0 : 5 - day;
+    return startOfDay(addDays(d, fridayOffset));
+  }
+
+  function readUrlState(): void {
+    const url = new URL(window.location.href);
+    const v = url.searchParams.get('view');
+    if (v === 'month' || v === 'week' || v === 'weekend' || v === 'day') currentView = v;
+    const dStr = url.searchParams.get('date');
+    if (dStr && /^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+      try {
+        const d = parseEventDate(dStr);
+        if (!isNaN(d.getTime())) focalDate = startOfDay(d);
+      } catch {}
+    }
+  }
+  function writeUrlState(): void {
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', currentView);
+    url.searchParams.set('date', isoDate(focalDate));
+    history.replaceState(null, '', url.toString());
+  }
+
+  function renderEventCompact(occ: EventOccurrence): string {
+    const href = eventHref(occ.event);
+    const time = occ.allDay ? '' : fmtTime(occ.start);
+    const inner =
+      `${time ? `<span class="cal-event-time">${time}</span> ` : ''}` +
+      `<span class="cal-event-title">${escapeHtml(occ.event.title)}</span>`;
+    const tag = href ? 'a' : 'span';
+    const hrefAttr = href ? ` href="${href}"` : '';
+    return `<${tag} class="cal-event"${hrefAttr}>${inner}</${tag}>`;
+  }
+
+  function renderEventCard(occ: EventOccurrence): string {
+    const href = eventHref(occ.event);
+    const loc = eventLocation(occ.event);
+    const inner =
+      `<div class="cal-card-time">${fmtRange(occ)}</div>` +
+      `<div class="cal-card-title">${escapeHtml(occ.event.title)}</div>` +
+      (loc ? `<div class="cal-card-loc">${escapeHtml(loc)}</div>` : '') +
+      (occ.event.description
+        ? `<div class="cal-card-desc">${escapeHtml(occ.event.description)}</div>`
+        : '');
+    const tag = href ? 'a' : 'div';
+    const hrefAttr = href ? ` href="${href}"` : '';
+    return `<${tag} class="cal-card"${hrefAttr}>${inner}</${tag}>`;
+  }
+
+  function renderMonth(): string {
+    const monthStart = startOfMonth(focalDate);
+    const gridStart = startOfWeek(monthStart);
+    const today = startOfDay(new Date());
+
+    const gridEndExclusive = addDays(gridStart, 42);
+    const occs = eventsInRange(rawEvents, gridStart, endOfDay(addDays(gridEndExclusive, -1)));
+    const byDate = new Map<string, EventOccurrence[]>();
+    for (const o of occs) {
+      const k = isoDate(o.start);
+      const arr = byDate.get(k) ?? [];
+      arr.push(o);
+      byDate.set(k, arr);
+    }
+
+    const headers = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      .map((d) => `<div class="cal-month-dayhead">${d}</div>`)
+      .join('');
+
+    const cells: string[] = [];
+    for (let i = 0; i < 42; i++) {
+      const d = addDays(gridStart, i);
+      const inMonth = d.getMonth() === monthStart.getMonth();
+      const today_ = isSameDay(d, today);
+      const key = isoDate(d);
+      const dayOccs = byDate.get(key) ?? [];
+      const visible = dayOccs.slice(0, 3);
+      const overflow = dayOccs.length - visible.length;
+      cells.push(`
+        <div class="cal-month-cell${inMonth ? '' : ' is-out'}${today_ ? ' is-today' : ''}">
+          <button type="button" class="cal-month-cell-button" data-jump="${key}">
+            <span class="cal-month-date">${d.getDate()}</span>
+          </button>
+          <div class="cal-month-events">
+            ${visible.map(renderEventCompact).join('')}
+            ${overflow > 0 ? `<div class="cal-month-more">+${overflow} more</div>` : ''}
+          </div>
+        </div>
+      `);
+    }
+    return `
+      <div class="cal-month">
+        <div class="cal-month-header">${headers}</div>
+        <div class="cal-month-grid">${cells.join('')}</div>
+      </div>
+    `;
+  }
+
+  function renderWeek(): string {
+    const weekStart = startOfWeek(focalDate);
+    const today = startOfDay(new Date());
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const cols: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(weekStart, i);
+      const dayOccs = eventsInRange(rawEvents, startOfDay(d), endOfDay(d));
+      const today_ = isSameDay(d, today);
+      cols.push(`
+        <section class="cal-week-col${today_ ? ' is-today' : ''}">
+          <header class="cal-week-colhead">
+            <span class="cal-week-dow">${dayNames[d.getDay()]}</span>
+            <span class="cal-week-date">${d.getDate()}</span>
+          </header>
+          <div class="cal-week-events">
+            ${dayOccs.length > 0 ? dayOccs.map(renderEventCard).join('') : '<div class="cal-empty">—</div>'}
+          </div>
+        </section>
+      `);
+    }
+    return `<div class="cal-week">${cols.join('')}</div>`;
+  }
+
+  function renderWeekend(): string {
+    const fri = findWeekend(focalDate);
+    const days = [fri, addDays(fri, 1), addDays(fri, 2)];
+    const labels = ['Friday', 'Saturday', 'Sunday'];
+    const today = startOfDay(new Date());
+    const cols = days.map((d, i) => {
+      const dayOccs = eventsInRange(rawEvents, startOfDay(d), endOfDay(d));
+      const today_ = isSameDay(d, today);
+      return `
+        <section class="cal-weekend-col${today_ ? ' is-today' : ''}">
+          <header class="cal-weekend-colhead">
+            <span class="cal-weekend-dow">${labels[i]}</span>
+            <span class="cal-weekend-date">${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+          </header>
+          <div class="cal-weekend-events">
+            ${dayOccs.length > 0 ? dayOccs.map(renderEventCard).join('') : '<div class="cal-empty">—</div>'}
+          </div>
+        </section>
+      `;
+    });
+    return `<div class="cal-weekend">${cols.join('')}</div>`;
+  }
+
+  function renderDay(): string {
+    const dayOccs = eventsInRange(rawEvents, startOfDay(focalDate), endOfDay(focalDate));
+    if (dayOccs.length === 0) {
+      return `<div class="cal-empty cal-empty-large">No events on this day.</div>`;
+    }
+    return `<div class="cal-day">${dayOccs.map(renderEventCard).join('')}</div>`;
+  }
+
+  function periodLabel(): string {
+    switch (currentView) {
+      case 'month':
+        return focalDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      case 'week': {
+        const ws = startOfWeek(focalDate);
+        const we = addDays(ws, 6);
+        return `${ws.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${we.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${we.getFullYear()}`;
+      }
+      case 'weekend': {
+        const fri = findWeekend(focalDate);
+        return `Weekend of ${fri.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      }
+      case 'day':
+        return focalDate.toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        });
+    }
+  }
+
+  function render(): void {
+    let html: string;
+    switch (currentView) {
+      case 'month':
+        html = renderMonth();
+        break;
+      case 'week':
+        html = renderWeek();
+        break;
+      case 'weekend':
+        html = renderWeekend();
+        break;
+      case 'day':
+        html = renderDay();
+        break;
+    }
+    contentEl.innerHTML = html;
+    periodEl.textContent = periodLabel();
+    viewButtons.forEach((b) =>
+      b.classList.toggle('is-active', b.dataset.view === currentView),
+    );
+    contentEl
+      .querySelectorAll<HTMLElement>('[data-jump]')
+      .forEach((btn) =>
+        btn.addEventListener('click', () => {
+          const ds = btn.dataset.jump!;
+          focalDate = parseEventDate(ds);
+          currentView = 'day';
+          writeUrlState();
+          render();
+        }),
+      );
+    writeUrlState();
+  }
+
+  function setView(v: View): void {
+    currentView = v;
+    render();
+  }
+
+  function navigate(direction: 'prev' | 'next' | 'today'): void {
+    if (direction === 'today') {
+      focalDate = startOfDay(new Date());
+    } else {
+      const sign = direction === 'next' ? 1 : -1;
+      switch (currentView) {
+        case 'month':
+          focalDate.setMonth(focalDate.getMonth() + sign);
+          break;
+        case 'week':
+        case 'weekend':
+          focalDate.setDate(focalDate.getDate() + 7 * sign);
+          break;
+        case 'day':
+          focalDate.setDate(focalDate.getDate() + sign);
+          break;
+      }
+    }
+    render();
+  }
+
+  readUrlState();
+  document.documentElement.classList.add('calendar-js');
+  viewButtons.forEach((b) =>
+    b.addEventListener('click', () => setView(b.dataset.view as View)),
+  );
+  navButtons.forEach((b) =>
+    b.addEventListener('click', () =>
+      navigate(b.dataset.nav as 'prev' | 'next' | 'today'),
+    ),
+  );
+  render();
+</script>
+
+<style is:global>
+  html:not(.calendar-js) .calendar-tabs,
+  html:not(.calendar-js) .calendar-nav {
+    display: none;
+  }
+
+  .calendar-tab {
+    padding-bottom: 0.25rem;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    background: none;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    color: var(--color-muted);
+    font: inherit;
+    letter-spacing: inherit;
+  }
+  .calendar-tab:hover {
+    color: var(--color-ink);
+  }
+  .calendar-tab.is-active {
+    color: var(--color-ink);
+    border-bottom-color: var(--color-accent);
+  }
+
+  .calendar-nav {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+  .calendar-nav button {
+    background: none;
+    border: 1px solid var(--color-rule);
+    color: var(--color-muted);
+    padding: 0.25rem 0.75rem;
+    cursor: pointer;
+    font: inherit;
+  }
+  .calendar-nav button:hover {
+    color: var(--color-ink);
+    border-color: var(--color-muted);
+  }
+  .calendar-period {
+    flex: 1;
+    font-family: var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-ink);
+  }
+
+  /* Month grid */
+  .cal-month {
+    border: 1px solid var(--color-rule);
+    background: var(--color-paper);
+  }
+  .cal-month-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .cal-month-dayhead {
+    padding: 0.5rem 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-muted);
+    border-right: 1px solid var(--color-rule);
+  }
+  .cal-month-dayhead:last-child {
+    border-right: 0;
+  }
+  .cal-month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-auto-rows: minmax(5.5rem, auto);
+  }
+  .cal-month-cell {
+    border-right: 1px solid var(--color-rule);
+    border-bottom: 1px solid var(--color-rule);
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .cal-month-cell:nth-child(7n) {
+    border-right: 0;
+  }
+  .cal-month-cell:nth-last-child(-n + 7) {
+    border-bottom: 0;
+  }
+  .cal-month-cell.is-out .cal-month-date {
+    opacity: 0.4;
+  }
+  .cal-month-cell.is-today {
+    background: rgba(61, 90, 61, 0.05);
+  }
+  .cal-month-cell-button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    padding: 0.25rem 0.5rem 0;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+  }
+  .cal-month-cell-button:hover {
+    background: rgba(61, 90, 61, 0.04);
+  }
+  .cal-month-date {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-muted);
+  }
+  .cal-month-cell.is-today .cal-month-date {
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+  .cal-month-events {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 2px 4px 4px;
+  }
+  .cal-event {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    line-height: 1.4;
+    padding: 1px 4px;
+    background: var(--color-accent);
+    color: var(--color-paper);
+    text-decoration: none;
+    border-radius: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cal-event:hover {
+    opacity: 0.85;
+  }
+  .cal-event-time {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
+    margin-right: 3px;
+  }
+  .cal-month-more {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--color-muted);
+    padding: 1px 4px;
+  }
+
+  /* Week and weekend grids */
+  .cal-week,
+  .cal-weekend {
+    display: grid;
+    gap: 0.5rem;
+  }
+  .cal-week {
+    grid-template-columns: repeat(7, minmax(8rem, 1fr));
+    overflow-x: auto;
+  }
+  .cal-weekend {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  @media (max-width: 640px) {
+    .cal-weekend {
+      grid-template-columns: 1fr;
+    }
+  }
+  .cal-week-col,
+  .cal-weekend-col {
+    border: 1px solid var(--color-rule);
+    background: var(--color-paper);
+    min-width: 0;
+  }
+  .cal-week-col.is-today,
+  .cal-weekend-col.is-today {
+    background: rgba(61, 90, 61, 0.04);
+  }
+  .cal-week-colhead,
+  .cal-weekend-colhead {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--color-rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .cal-week-dow,
+  .cal-weekend-dow {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-muted);
+  }
+  .cal-week-date,
+  .cal-weekend-date {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .cal-week-col.is-today .cal-week-date,
+  .cal-weekend-col.is-today .cal-weekend-date {
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+  .cal-week-events,
+  .cal-weekend-events {
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .cal-empty {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    color: var(--color-muted);
+    padding: 0.5rem 0;
+  }
+  .cal-empty-large {
+    padding: 3rem 0;
+    text-align: center;
+    font-style: italic;
+  }
+
+  /* Event card (week, weekend, day) */
+  .cal-card {
+    display: block;
+    padding: 0.625rem 0.75rem;
+    background: rgba(61, 90, 61, 0.06);
+    border-left: 3px solid var(--color-accent);
+    text-decoration: none;
+    color: inherit;
+  }
+  .cal-card:hover {
+    background: rgba(61, 90, 61, 0.1);
+  }
+  .cal-card-time {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .cal-card-title {
+    font-size: 15px;
+    line-height: 1.3;
+    margin-top: 3px;
+  }
+  .cal-card-loc {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--color-muted);
+    margin-top: 4px;
+  }
+  .cal-card-desc {
+    font-size: 13px;
+    color: var(--color-muted);
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+
+  /* Day view: stack cards full-width */
+  .cal-day {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+</style>
