@@ -63,43 +63,28 @@ export const categoryLabels: Record<EventCategory, string> = {
 };
 
 /**
- * Seed events. These three are clearly marked placeholders that demonstrate
- * the three shapes (timed one-off, weekly recurring, all-day multi-day).
- * Replace with real events as curation continues.
+ * Curated events. Only things David can personally vouch for go here.
+ *
+ * Event shape (reference — do not copy verbatim as a real event):
+ *
+ *   {
+ *     id: 'unique-slug-string',
+ *     title: 'Event Name',
+ *     description: 'Optional. One or two sentences of context.',
+ *     placeSlug: 'matching-slug-from-places.ts',   // optional
+ *     locationOverride: 'Free-text location',      // use if no placeSlug
+ *     start: 'YYYY-MM-DDTHH:MM',                   // ISO local; omit time for all-day
+ *     end: 'YYYY-MM-DDTHH:MM',                     // optional
+ *     recurring: {                                  // optional
+ *       freq: 'weekly',
+ *       byDay: ['sat'],                            // 'mon' | 'tue' | ... | 'sun'
+ *       until: 'YYYY-MM-DD',                       // optional
+ *     },
+ *     url: 'https://example.com',                  // optional external link
+ *     category: 'arts',                            // arts | food | civic | market | music | kids | community | other
+ *   }
  */
-export const events: FieldEvent[] = [
-  {
-    id: 'sample-recurring-story-hour',
-    title: 'Sample: Saturday Story Hour',
-    description:
-      'PLACEHOLDER — replace with real events. Demonstrates a weekly recurring event linked to a place.',
-    placeSlug: 'kinderhook-library',
-    start: '2026-05-09T10:30',
-    end: '2026-05-09T11:30',
-    recurring: { freq: 'weekly', byDay: ['sat'] },
-    category: 'kids',
-  },
-  {
-    id: 'sample-gallery-opening',
-    title: 'Sample: Gallery Opening',
-    description:
-      'PLACEHOLDER — replace with real events. Demonstrates a one-off timed event in the evening.',
-    placeSlug: 'jack-shainman',
-    start: '2026-05-17T17:00',
-    end: '2026-05-17T19:00',
-    category: 'arts',
-  },
-  {
-    id: 'sample-summer-festival',
-    title: 'Sample: Summer Festival',
-    description:
-      'PLACEHOLDER — replace with real events. Demonstrates an all-day, multi-day event with a free-text location.',
-    locationOverride: 'Kinderhook Village Green',
-    start: '2026-05-23',
-    end: '2026-05-24',
-    category: 'community',
-  },
-];
+export const events: FieldEvent[] = [];
 
 const dayKeyToJSDay: Record<DayKey, number> = {
   sun: 0,

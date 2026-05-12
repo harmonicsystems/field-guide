@@ -79,7 +79,9 @@ function eventLocation(e: FieldEvent): string {
       </h2>
       {
         upcoming.length === 0 ? (
-          <p class="text-[var(--color-muted)] italic py-8">No events on the horizon. Check back soon.</p>
+          <p class="text-[var(--color-muted)] py-8 leading-relaxed">
+            Nothing on the calendar yet. Check back soon — updates are on the way.
+          </p>
         ) : (
           <ul class="space-y-6">
             {upcoming.map((occ: EventOccurrence) => {
@@ -375,7 +377,7 @@ function eventLocation(e: FieldEvent): string {
   function renderDay(): string {
     const dayOccs = eventsInRange(rawEvents, startOfDay(focalDate), endOfDay(focalDate));
     if (dayOccs.length === 0) {
-      return `<div class="cal-empty cal-empty-large">No events on this day.</div>`;
+      return `<div class="cal-empty cal-empty-large">Nothing on this day yet. Check back soon.</div>`;
     }
     return `<div class="cal-day">${dayOccs.map(renderEventCard).join('')}</div>`;
   }
