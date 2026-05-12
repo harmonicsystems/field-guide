@@ -65,26 +65,214 @@ export const categoryLabels: Record<EventCategory, string> = {
 /**
  * Curated events. Only things David can personally vouch for go here.
  *
- * Event shape (reference — do not copy verbatim as a real event):
+ * Event shape:
+ *   id: unique slug
+ *   title, description (optional)
+ *   placeSlug (optional, must match places.ts) OR locationOverride (free-text)
+ *   start: 'YYYY-MM-DDTHH:MM' (timed) or 'YYYY-MM-DD' (all-day)
+ *   end: optional, same format
+ *   recurring: { freq: 'weekly', byDay: ['sat'], until: 'YYYY-MM-DD' } — optional
+ *   url: optional external link
+ *   category: arts | food | civic | market | music | kids | community | other
  *
- *   {
- *     id: 'unique-slug-string',
- *     title: 'Event Name',
- *     description: 'Optional. One or two sentences of context.',
- *     placeSlug: 'matching-slug-from-places.ts',   // optional
- *     locationOverride: 'Free-text location',      // use if no placeSlug
- *     start: 'YYYY-MM-DDTHH:MM',                   // ISO local; omit time for all-day
- *     end: 'YYYY-MM-DDTHH:MM',                     // optional
- *     recurring: {                                  // optional
- *       freq: 'weekly',
- *       byDay: ['sat'],                            // 'mon' | 'tue' | ... | 'sun'
- *       until: 'YYYY-MM-DD',                       // optional
- *     },
- *     url: 'https://example.com',                  // optional external link
- *     category: 'arts',                            // arts | food | civic | market | music | kids | community | other
- *   }
+ * Many of the entries below were imported from harmonicsystems/market on
+ * 2026-05-12 — see scripts in commit history. To add new events, append to
+ * this array. Slug duplicates within the array will produce duplicate UIDs.
  */
-export const events: FieldEvent[] = [];
+export const events: FieldEvent[] = [
+  // Recurring backbone: the Saturday market itself. Ends 2026-10-24 so the
+  // explicit "Final Market Day of 2026" (Oct 31) below isn't doubled up.
+  {
+    id: 'kinderhook-farmers-market-2026-season',
+    title: 'Kinderhook Farmers Market',
+    description: 'Weekly Saturday market on the Village Green — May through October.',
+    placeSlug: 'kinderhook-farmers-market',
+    start: '2026-05-02T08:30',
+    end: '2026-05-02T12:30',
+    recurring: { freq: 'weekly', byDay: ['sat'], until: '2026-10-24' },
+    category: 'market',
+  },
+
+  // --- Imported from harmonicsystems/market on 2026-05-12 ---
+  {
+    id: 'fall-festival',
+    title: 'Fall Festival & Kinderhook Makers Market',
+    description:
+      'Fall Festival — extended market day with the Kinderhook Makers Market joining the Farmers Market on the Village Green.',
+    placeSlug: 'kinderhook-farmers-market',
+    start: '2026-10-10T08:30',
+    end: '2026-10-10T14:00',
+    category: 'community',
+  },
+  {
+    id: 'fall-yard-sale',
+    title: 'Village-Wide Fall Yard Sale',
+    description: 'Village-wide fall yard sale — treasures scattered across Kinderhook. Runs 9 AM until sold out.',
+    locationOverride: 'Throughout the Village',
+    start: '2026-09-19T09:00',
+    category: 'community',
+  },
+  {
+    id: 'festival-of-the-unknown',
+    title: 'Festival of the Unknown',
+    description:
+      'Lectures and panel discussions on cryptozoology, ufology, and parapsychology, plus author meet-and-greets, vendors, and a documentary screening about local cryptids.',
+    placeSlug: 'kinderhook-library',
+    start: '2026-05-16T11:00',
+    end: '2026-05-16T14:00',
+    url: 'https://kinderhooklibrary.org/event/festival-of-the-unknown-3/',
+    category: 'civic',
+  },
+  {
+    id: 'final-market-day-2026',
+    title: 'Final Market Day of 2026',
+    description: 'The last Saturday of the 2026 Kinderhook Farmers Market season. See you next spring!',
+    placeSlug: 'kinderhook-farmers-market',
+    start: '2026-10-31T08:30',
+    end: '2026-10-31T12:30',
+    category: 'food',
+  },
+  {
+    id: 'fyfe-drumms-muster-parade',
+    title: 'Fyfe & Drumms Muster & Parade',
+    description: 'Muster and parade on Broad Street celebrating local Fyfe & Drumms traditions.',
+    locationOverride: 'Broad Street',
+    start: '2026-05-30T12:00',
+    category: 'community',
+  },
+  {
+    id: 'kinderhook-makers-market-2026-05-30',
+    title: 'Kinderhook Makers Market — Extended Market Day',
+    description:
+      'Extended market day featuring the Kinderhook Farmers Market alongside the Kinderhook Makers Market.',
+    placeSlug: 'kinderhook-farmers-market',
+    start: '2026-05-30T08:30',
+    end: '2026-05-30T14:00',
+    category: 'community',
+  },
+  {
+    id: 'kinderhook-pride-parade',
+    title: 'Kinderhook Pride Parade',
+    description: 'The Kinderhook Pride Parade — Hudson Street to Kinderhook Village Square.',
+    locationOverride: 'Hudson Street to Kinderhook Village Square',
+    start: '2026-06-27T14:00',
+    category: 'community',
+  },
+  {
+    id: 'modus-operandi-jack-shainman',
+    title: 'Modus Operandi',
+    description:
+      "Season-opening group exhibition at Jack Shainman Gallery's landmark space on Broad Street. Works by El Anatsui, Radcliffe Bailey, Yoan Capote, Nick Cave, Mark Dion, Jannis Kounellis, Guillermo Kuitca, Wolfgang Laib, Amy Lincoln, Barry McGee, Meleko Mokgosi, Richard Mosse, Bruce Nauman, Elizabeth Neel, George Rickey, Faith Ringgold, Alexis Rockman, Susan Rothenberg, and Rose B. Simpson.",
+    placeSlug: 'jack-shainman',
+    start: '2026-05-30T14:00',
+    url: 'https://jackshainman.com/',
+    category: 'arts',
+  },
+  {
+    id: 'ok-5k',
+    title: 'OK 5K',
+    description: "The OK 5K — Kinderhook's community road race. Time to be announced.",
+    locationOverride: 'Kinderhook',
+    start: '2026-06-06',
+    category: 'community',
+  },
+  {
+    id: 'peoples-parade-2026-07-04',
+    title: "People's Parade",
+    description:
+      "KBPA's annual People's Parade kicks off from Rothermel Park. The farmers market runs extended hours to 1:30 PM.",
+    locationOverride: 'Rothermel Park',
+    start: '2026-07-04T11:30',
+    category: 'community',
+  },
+  {
+    id: 'persons-of-color-cemetery-tour',
+    title: 'Persons of Color Cemetery Tour',
+    description: 'Guided cemetery tour conducted by The Cultural Landscape Foundation. Times to be announced.',
+    locationOverride: 'Kinderhook',
+    start: '2026-06-06',
+    category: 'community',
+  },
+  {
+    id: 'rising-star-dance-academy-performance',
+    title: 'Rising Star Dance Academy Performance',
+    description: 'Rising Star Dance Academy performs live at the Kinderhook Farmers Market.',
+    placeSlug: 'kinderhook-farmers-market',
+    start: '2026-06-20T11:00',
+    category: 'community',
+  },
+  {
+    id: 'seen-scenes-opening-reception',
+    title: 'Seen Scenes — Opening Reception',
+    description:
+      'Opening reception for Seen Scenes, the Create Council on the Arts Members Show 2026. On view June 5–28 at the Kinderhook Knitting Mill.',
+    locationOverride: 'Kinderhook Knitting Mill',
+    start: '2026-06-06T15:00',
+    end: '2026-06-06T17:00',
+    category: 'arts',
+  },
+  {
+    id: 'spring-yard-sale',
+    title: 'Village-Wide Spring Yard Sale',
+    description: 'Village-wide spring yard sale — treasures scattered across Kinderhook. Runs 9 AM until sold out.',
+    locationOverride: 'Throughout the Village',
+    start: '2026-05-23T09:00',
+    category: 'community',
+  },
+  {
+    id: 'stories-for-pups-2026-06-06',
+    title: 'Stories for Pups',
+    description:
+      'Young readers practice reading aloud to Windy, a certified therapy dog, in a welcoming, judgment-free environment.',
+    placeSlug: 'kinderhook-library',
+    start: '2026-06-06T13:00',
+    end: '2026-06-06T14:00',
+    url: 'https://kinderhooklibrary.org/event/stories-for-pups-4/2026-06-06/',
+    category: 'civic',
+  },
+  {
+    id: 'stories-for-pups-2026-05-02',
+    title: 'Stories for Pups',
+    description:
+      'Young readers practice reading aloud to Windy, a certified therapy dog, in a welcoming, judgment-free environment.',
+    placeSlug: 'kinderhook-library',
+    start: '2026-05-02T13:00',
+    end: '2026-05-02T14:00',
+    url: 'https://kinderhooklibrary.org/event/stories-for-pups-4/2026-05-02/',
+    category: 'civic',
+  },
+  {
+    id: 'super-stories-mothers-day-card-making',
+    title: "Open Maker Hours — Mother's Day Card Making",
+    description: "Drop in to Super Stories' open maker hours and make a card for Mother's Day.",
+    placeSlug: 'super-stories',
+    start: '2026-05-09T10:00',
+    end: '2026-05-09T12:00',
+    category: 'community',
+  },
+  {
+    id: 'travel-planning-made-easy',
+    title: 'Travel Planning Made Easy',
+    description:
+      'Practical tools for budgeting, packing, evaluating options, and building an itinerary for your next trip.',
+    placeSlug: 'kinderhook-library',
+    start: '2026-05-09T14:00',
+    end: '2026-05-09T15:00',
+    url: 'https://kinderhooklibrary.org/event/travel-planning-made-easy/',
+    category: 'civic',
+  },
+  {
+    id: 'volunteer-fair',
+    title: 'Volunteer Fair',
+    description:
+      "The library's inaugural volunteer fair — meet local nonprofits that need help and learn about their missions, time commitments, and skills needed.",
+    placeSlug: 'kinderhook-library',
+    start: '2026-06-13T10:00',
+    end: '2026-06-13T14:00',
+    url: 'https://kinderhooklibrary.org/event/volunteer-fair/',
+    category: 'civic',
+  },
+];
 
 const dayKeyToJSDay: Record<DayKey, number> = {
   sun: 0,

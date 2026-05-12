@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Map from '../components/Map.astro';
 import { places, collectionLD } from '../data/places';
+import { events } from '../data/events';
 
 const towns = Array.from(new Set(places.map((p) => p.town)));
 const byTown = towns.map((town) => ({
@@ -12,6 +13,9 @@ const byTown = towns.map((town) => ({
 const siteUrl = Astro.site ?? new URL('https://field-guide.feed-and-seed.com');
 const base = siteUrl.toString().replace(/\/$/, '');
 const ld = collectionLD(places, base);
+
+// Slim payloads for the status-indicator client script.
+const statusSchedules = Object.fromEntries(places.map((p) => [p.slug, p.schedule]));
 ---
 
 <Layout title="Field Guide — Kinderhook, NY">
@@ -52,15 +56,29 @@ const ld = collectionLD(places, base);
           </h2>
           <ul class="space-y-3">
             {items.map((p) => (
-              <li>
+              <li data-slug={p.slug}>
                 <a
                   href={`/${p.slug}/`}
                   class="block hover:text-[var(--color-accent)] transition-colors"
                 >
                   <div class="flex items-baseline justify-between gap-4">
-                    <span class="text-lg">{p.name}</span>
-                    <span class="font-sans text-xs text-[var(--color-muted)] tabular-nums shrink-0">
-                      {p.category.split(' — ')[0]}
+                    <span class="text-lg flex items-baseline gap-2">
+                      <span>{p.name}</span>
+                      <span
+                        class="status-event-dot hidden"
+                        data-status-event
+                        aria-label="Event today"
+                        title="Event today"
+                      />
+                    </span>
+                    <span class="flex items-baseline gap-3 shrink-0">
+                      <span
+                        class="status-open-badge hidden font-sans text-[10px] uppercase tracking-[0.12em] tabular-nums"
+                        data-status-open
+                      />
+                      <span class="font-sans text-xs text-[var(--color-muted)] tabular-nums">
+                        {p.category.split(' — ')[0]}
+                      </span>
                     </span>
                   </div>
                 </a>
@@ -80,5 +98,81 @@ const ld = collectionLD(places, base);
         >, a barn workspace in Kinderhook, NY.
       </p>
     </footer>
+
+    <script type="application/json" id="status-schedules" is:inline set:html={JSON.stringify(statusSchedules)} />
+    <script type="application/json" id="status-events" is:inline set:html={JSON.stringify(events)} />
   </main>
 </Layout>
+
+<script>
+  import { isOpenNow, type Schedule } from '../data/places';
+  import { eventsInRange, type FieldEvent } from '../data/events';
+
+  const schedules: Record<string, Schedule> = JSON.parse(
+    document.getElementById('status-schedules')!.textContent || '{}',
+  );
+  const allEvents: FieldEvent[] = JSON.parse(
+    document.getElementById('status-events')!.textContent || '[]',
+  );
+
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+
+  // Build a set of place slugs with an event today.
+  const placesWithEventToday = new Set<string>();
+  for (const occ of eventsInRange(allEvents, startOfToday, endOfToday)) {
+    if (occ.event.placeSlug) placesWithEventToday.add(occ.event.placeSlug);
+  }
+
+  function fmtCloseTime(s: string): string {
+    const [h, m] = s.split(':').map(Number);
+    const period = h >= 12 ? 'p' : 'a';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2, '0')}${period}`;
+  }
+
+  document.querySelectorAll<HTMLElement>('li[data-slug]').forEach((li) => {
+    const slug = li.dataset.slug!;
+    const schedule = schedules[slug];
+    if (schedule) {
+      const status = isOpenNow(schedule, now);
+      if (status.open) {
+        const badge = li.querySelector<HTMLElement>('[data-status-open]');
+        if (badge) {
+          badge.textContent = `Open · until ${fmtCloseTime(status.closesAt)}`;
+          badge.classList.remove('hidden');
+          badge.classList.add('is-open');
+        }
+      }
+    }
+    if (placesWithEventToday.has(slug)) {
+      const dot = li.querySelector<HTMLElement>('[data-status-event]');
+      if (dot) dot.classList.remove('hidden');
+    }
+  });
+</script>
+
+<style>
+  .status-open-badge {
+    color: var(--color-paper);
+    background: var(--color-accent);
+    padding: 1px 6px;
+    border-radius: 1px;
+    white-space: nowrap;
+  }
+  .status-event-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--color-accent);
+    transform: translateY(-1px);
+  }
+  .status-event-dot.hidden,
+  .status-open-badge.hidden {
+    display: none;
+  }
+</style>

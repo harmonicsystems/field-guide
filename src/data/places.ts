@@ -50,12 +50,35 @@ export interface Place {
   hours: string;
   schedule: Schedule;
   schemaType: SchemaType;
-  placeId: string;
+  /** Google Place ID. Null for venues without one (e.g. the Village Green). */
+  placeId: string | null;
   lat: number;
   lng: number;
   googleRating: string;
   /** Empty for now. This is the field-guide voice — David's curation. */
   notes: string;
+}
+
+/** Is `place` currently open? If yes, return the closing time of the active block. */
+export function isOpenNow(
+  schedule: Schedule,
+  now: Date = new Date(),
+): { open: true; closesAt: string } | { open: false; reason: 'closed' | 'appt' } {
+  const dayKey = dayKeyFromDate(now);
+  const day = schedule[dayKey];
+  if (day === 'appt') return { open: false, reason: 'appt' };
+  if (day.length === 0) return { open: false, reason: 'closed' };
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  for (const block of day) {
+    const [oh, om] = block.open.split(':').map(Number);
+    const [ch, cm] = block.close.split(':').map(Number);
+    const startMin = oh * 60 + om;
+    const endMin = ch * 60 + cm;
+    if (nowMin >= startMin && nowMin < endMin) {
+      return { open: true, closesAt: block.close };
+    }
+  }
+  return { open: false, reason: 'closed' };
 }
 
 const dayToSchemaDay: Record<DayKey, string> = {
@@ -721,8 +744,35 @@ export const places: Place[] = [
     googleRating: '4.8 (288)',
     notes: '',
   },
+  {
+    slug: 'kinderhook-farmers-market',
+    schemaType: 'LocalBusiness',
+    name: 'Kinderhook Farmers Market',
+    category: 'Market — farmers market / Saturday',
+    town: 'Kinderhook, NY',
+    address: 'Village Green, Broad Street & Albany Avenue, Kinderhook, NY 12106',
+    phone: null,
+    hours: 'Sat 8:30a–12:30p (May–Oct)',
+    schedule: {
+      mon: [],
+      tue: [],
+      wed: [],
+      thu: [],
+      fri: [],
+      sat: [at('08:30', '12:30')],
+      sun: [],
+    },
+    placeId: null,
+    lat: 42.3953,
+    lng: -73.6984,
+    googleRating: '',
+    notes: '',
+  },
 ];
 
 export function googleMapsUrl(place: Place): string {
-  return `https://www.google.com/maps/place/?q=place_id:${place.placeId}`;
+  if (place.placeId) {
+    return `https://www.google.com/maps/place/?q=place_id:${place.placeId}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`;
 }
