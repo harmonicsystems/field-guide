@@ -9,7 +9,7 @@ export const GET: APIRoute = ({ site }) => {
   const payload = {
     name: 'Field Guide — Kinderhook, NY',
     description:
-      'A curated field guide to Kinderhook, NY and the small places nearby — by David Nyman.',
+      'A curated field guide to Kinderhook, NY and the small places nearby — kept by Feed & Seed, a barn in Kinderhook.',
     url: `${base}/`,
     license: 'CC BY 4.0',
     updated: new Date().toISOString().slice(0, 10),

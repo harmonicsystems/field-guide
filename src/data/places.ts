@@ -59,6 +59,51 @@ export interface Place {
   notes: string;
 }
 
+/** The Kinderhook Village Green — used as the reference point for walking-time labels. */
+export const villageCenter = { lat: 42.3953, lng: -73.6984 };
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Walking minutes from the Village Green for places in Kinderhook proper.
+ * Returns null for places outside the village (too far to walk in any
+ * useful sense), or for places literally on the green.
+ */
+export function walkingMinutesFromCenter(place: Place): number | null {
+  if (place.town !== 'Kinderhook, NY') return null;
+  const km = haversineKm(place.lat, place.lng, villageCenter.lat, villageCenter.lng);
+  if (km < 0.02) return null; // place is on the Village Green itself
+  const minutes = (km * 1000) / 80; // ~80 m/min ≈ 4.8 km/h
+  return Math.max(1, Math.round(minutes));
+}
+
+/**
+ * Abstracted popularity from googleRating — three categories, plus null.
+ * Avoids surfacing hard numbers in user-facing UI while still conveying signal.
+ */
+export type PopularityLabel = 'Local favorite' | 'Quiet pick' | 'Popular';
+
+export function popularityLabel(googleRating: string): PopularityLabel | null {
+  const m = googleRating.match(/^([\d.]+)\s*\((\d+)\)/);
+  if (!m) return null;
+  const rating = parseFloat(m[1]);
+  const count = parseInt(m[2], 10);
+  if (count >= 100 && rating >= 4.7) return 'Local favorite';
+  if (count < 50 && rating >= 4.7) return 'Quiet pick';
+  if (count >= 200 && rating < 4.7) return 'Popular';
+  return null;
+}
+
 /** Is `place` currently open? If yes, return the closing time of the active block. */
 export function isOpenNow(
   schedule: Schedule,
@@ -177,7 +222,7 @@ export function collectionLD(allPlaces: Place[], baseUrl: string) {
     url: `${baseUrl}/`,
     name: 'Field Guide — Kinderhook, NY',
     description:
-      'A curated field guide to Kinderhook, NY and the small places nearby — by David Nyman, who lives in the village.',
+      'A curated field guide to Kinderhook, NY and the small places nearby — kept by Feed & Seed, a barn in Kinderhook.',
     mainEntity: {
       '@type': 'ItemList',
       numberOfItems: allPlaces.length,

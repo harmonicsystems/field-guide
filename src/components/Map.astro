@@ -1,5 +1,10 @@
 ---
-import type { Place } from '../data/places';
+import {
+  popularityLabel,
+  walkingMinutesFromCenter,
+  type Place,
+} from '../data/places';
+import { events } from '../data/events';
 
 interface Props {
   places: Place[];
@@ -15,12 +20,27 @@ const points = places.map((p) => ({
   town: p.town,
   lat: p.lat,
   lng: p.lng,
+  schedule: p.schedule,
+  popularity: popularityLabel(p.googleRating),
+  walkingMinutes: walkingMinutesFromCenter(p),
 }));
+
+// Only events that link to a place are useful for the next-event lookup.
+const slimEvents = events
+  .filter((e) => e.placeSlug)
+  .map((e) => ({
+    placeSlug: e.placeSlug!,
+    title: e.title,
+    start: e.start,
+    end: e.end,
+    recurring: e.recurring,
+  }));
 ---
 
 <div
   class:list={['field-guide-map', className]}
   data-points={JSON.stringify(points)}
+  data-events={JSON.stringify(slimEvents)}
   data-single-zoom={singleZoom}
   role="region"
   aria-label={places.length === 1 ? `Map of ${places[0].name}` : 'Map of places in the field guide'}
@@ -30,11 +50,98 @@ const points = places.map((p) => ({
 <script>
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
+  import { isOpenNow, type Schedule } from '../data/places';
+  import { expandOccurrences, type FieldEvent } from '../data/events';
 
-  type Point = { slug: string; name: string; town: string; lat: number; lng: number };
+  type Point = {
+    slug: string;
+    name: string;
+    town: string;
+    lat: number;
+    lng: number;
+    schedule: Schedule;
+    popularity: string | null;
+    walkingMinutes: number | null;
+  };
+  type SlimEvent = Pick<FieldEvent, 'placeSlug' | 'title' | 'start' | 'end' | 'recurring'>;
+
+  function fmtTime12(s: string): string {
+    const [h, m] = s.split(':').map(Number);
+    const period = h >= 12 ? 'p' : 'a';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return m === 0 ? `${h12}${period}` : `${h12}:${String(m).padStart(2, '0')}${period}`;
+  }
+
+  function fmtDayAndDate(d: Date, todayMidnight: Date): string {
+    const dayDiff = Math.round((d.getTime() - todayMidnight.getTime()) / 86400000);
+    if (dayDiff === 0) return 'Today';
+    if (dayDiff === 1) return 'Tomorrow';
+    return d.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+
+  function escapeHtml(s: string): string {
+    return s.replace(/[&<>"']/g, (c) =>
+      c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '"' ? '&quot;' : '&#39;',
+    );
+  }
+
+  function buildPopupHtml(
+    p: Point,
+    eventsForPlace: SlimEvent[],
+    now: Date,
+    todayMidnight: Date,
+    horizon: Date,
+  ): string {
+    const status = isOpenNow(p.schedule, now);
+    let statusHtml = '';
+    if (status.open) {
+      statusHtml = `<div class="fg-popup-status is-open">Open · until ${fmtTime12(status.closesAt)}</div>`;
+    } else if (status.reason === 'appt') {
+      statusHtml = `<div class="fg-popup-status is-appt">By appointment</div>`;
+    } else {
+      // Closed today — only show this if there's nothing further to say.
+      // Keep it muted/subtle so it doesn't dominate.
+      statusHtml = `<div class="fg-popup-status is-closed">Closed today</div>`;
+    }
+
+    let eventHtml = '';
+    const occs = eventsForPlace.flatMap((e) =>
+      expandOccurrences(e as unknown as FieldEvent, now, horizon),
+    );
+    occs.sort((a, b) => a.start.getTime() - b.start.getTime());
+    const next = occs[0];
+    if (next) {
+      const day = fmtDayAndDate(next.start, todayMidnight);
+      const time = next.allDay ? '' : ` · ${fmtTime12(next.start.toTimeString().slice(0, 5))}`;
+      eventHtml = `<div class="fg-popup-event">${escapeHtml(day)} · ${escapeHtml(next.event.title)}${time}</div>`;
+    }
+
+    const popularityHtml = p.popularity
+      ? `<span class="fg-popup-popularity"> · ${escapeHtml(p.popularity)}</span>`
+      : '';
+    const walkingHtml =
+      p.walkingMinutes !== null
+        ? `<div class="fg-popup-walk">${p.walkingMinutes} min walk from the Village Green</div>`
+        : '';
+
+    return `
+      <a class="fg-popup-link" href="/${p.slug}/">
+        <strong>${escapeHtml(p.name)}</strong>
+        <span>${escapeHtml(p.town)}${popularityHtml}</span>
+        ${statusHtml}
+        ${eventHtml}
+        ${walkingHtml}
+      </a>
+    `;
+  }
 
   document.querySelectorAll<HTMLElement>('.field-guide-map').forEach((el) => {
     const points: Point[] = JSON.parse(el.dataset.points ?? '[]');
+    const slimEvents: SlimEvent[] = JSON.parse(el.dataset.events ?? '[]');
     const singleZoom = Number(el.dataset.singleZoom ?? 15);
     if (points.length === 0) return;
 
@@ -61,11 +168,23 @@ const points = places.map((p) => ({
       popupAnchor: [0, -8],
     });
 
-    const markers = points.map((p) =>
-      L.marker([p.lat, p.lng], { icon, title: p.name }).bindPopup(
-        `<a class="fg-popup-link" href="/${p.slug}/"><strong>${p.name}</strong><span>${p.town}</span></a>`,
-      ),
-    );
+    const now = new Date();
+    const todayMidnight = new Date(now);
+    todayMidnight.setHours(0, 0, 0, 0);
+    const horizon = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    const eventsByPlace = new Map<string, SlimEvent[]>();
+    for (const e of slimEvents) {
+      const arr = eventsByPlace.get(e.placeSlug) ?? [];
+      arr.push(e);
+      eventsByPlace.set(e.placeSlug, arr);
+    }
+
+    const markers = points.map((p) => {
+      const eventsForPlace = eventsByPlace.get(p.slug) ?? [];
+      const html = buildPopupHtml(p, eventsForPlace, now, todayMidnight, horizon);
+      return L.marker([p.lat, p.lng], { icon, title: p.name }).bindPopup(html);
+    });
     const group = L.featureGroup(markers).addTo(map);
 
     if (points.length === 1) {
@@ -108,6 +227,7 @@ const points = places.map((p) => ({
   .leaflet-popup-content {
     margin: 10px 14px;
     line-height: 1.4;
+    min-width: 200px;
   }
   .leaflet-popup-content .fg-popup-link {
     text-decoration: none;
@@ -119,7 +239,7 @@ const points = places.map((p) => ({
     font-weight: 500;
     margin-bottom: 2px;
   }
-  .leaflet-popup-content .fg-popup-link span {
+  .leaflet-popup-content .fg-popup-link > span {
     display: block;
     font-size: 0.7rem;
     text-transform: uppercase;
@@ -129,6 +249,50 @@ const points = places.map((p) => ({
   }
   .leaflet-popup-content .fg-popup-link:hover strong {
     color: var(--color-accent);
+  }
+
+  .fg-popup-status {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 1px 6px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-radius: 1px;
+  }
+  .fg-popup-status.is-open {
+    background: var(--color-accent);
+    color: var(--color-paper);
+  }
+  .fg-popup-status.is-appt,
+  .fg-popup-status.is-closed {
+    background: transparent;
+    color: var(--color-muted);
+    border: 1px solid var(--color-rule);
+  }
+
+  .fg-popup-event {
+    display: block;
+    margin-top: 6px;
+    font-size: 11px;
+    font-style: italic;
+    color: var(--color-ink);
+    line-height: 1.3;
+  }
+
+  .fg-popup-walk {
+    display: block;
+    margin-top: 4px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--color-muted);
+  }
+
+  .fg-popup-popularity {
+    font-family: var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
   }
 
   .leaflet-control-attribution {

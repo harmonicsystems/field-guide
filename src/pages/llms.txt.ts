@@ -10,7 +10,7 @@ export const GET: APIRoute = ({ site }) => {
   lines.push('# Field Guide');
   lines.push('');
   lines.push(
-    '> A curated field guide to Kinderhook, NY and the small places nearby. Kept by David Nyman, who lives in the village. The list is short on purpose — everything in it is somewhere David would actually go.',
+    '> A curated field guide to Kinderhook, NY and the small places nearby. Kept by Feed & Seed, a barn in Kinderhook. The list is short on purpose — everywhere in it is somewhere we would actually go.',
   );
   lines.push('');
   lines.push(

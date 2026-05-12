@@ -1,12 +1,12 @@
 # field-guide
 
 > A field guide to Kinderhook, NY and the small places nearby.
-> Kept by David Nyman. Lives at https://field-guide.feed-and-seed.com.
+> Kept by Feed & Seed, a barn in Kinderhook, NY. Lives at https://field-guide.feed-and-seed.com.
 
-A small Astro site. The list is short on purpose. Everything in it is
-somewhere David would actually go. The factual scaffolding (addresses,
-hours, coordinates) is in `src/data/places.ts`; the curation — a few
-sentences per place, in David's voice — goes in the `notes` field for
+A small Astro site. The list is short on purpose. Everywhere in it is
+somewhere we'd actually go. The factual scaffolding (addresses, hours,
+coordinates) is in `src/data/places.ts`; the curation — a few sentences
+per place, in the field-guide voice — goes in the `notes` field for
 each entry.
 
 Companion to [fieldreports.harmonic-systems.org](https://fieldreports.harmonic-systems.org),
