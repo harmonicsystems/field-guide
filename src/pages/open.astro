@@ -1,6 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { places, dayKeys, dayLabels, type DayKey } from '../data/places';
+import { places, dayKeys, dayLabels, distanceFromCenter, type DayKey } from '../data/places';
 
 const RANGE_START_MIN = 6 * 60;
 const RANGE_END_MIN = 24 * 60;
@@ -33,6 +33,19 @@ function fmt(s: string): string {
 }
 
 const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
+
+// Per-place sort metadata, indexed by slug. Client JS reads this to re-order rows.
+const sortMeta = Object.fromEntries(
+  places.map((p) => {
+    const openMin: Record<DayKey, number | null> = {} as Record<DayKey, number | null>;
+    for (const d of dayKeys) {
+      const day = p.schedule[d];
+      if (day === 'appt' || day.length === 0) openMin[d] = null;
+      else openMin[d] = timeToMin(day[0].open);
+    }
+    return [p.slug, { town: p.town, distanceKm: distanceFromCenter(p), openMin }];
+  }),
+);
 ---
 
 <Layout
@@ -70,6 +83,16 @@ const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
           </button>
         ))
       }
+    </nav>
+
+    <nav
+      class="schedule-sort font-sans text-xs uppercase tracking-[0.12em] flex flex-wrap items-baseline gap-x-4 gap-y-2 mb-6 text-[var(--color-muted)]"
+      aria-label="Sort"
+    >
+      <span>Sort:</span>
+      <button type="button" data-sort="name" class="schedule-sort-button">A–Z</button>
+      <button type="button" data-sort="time" class="schedule-sort-button">By open time</button>
+      <button type="button" data-sort="distance" class="schedule-sort-button">By distance</button>
     </nav>
 
     <div class="schedule-scale relative font-sans text-xs text-[var(--color-muted)] tabular-nums mb-3 ml-[12rem] hidden sm:block" aria-hidden="true">
@@ -119,6 +142,7 @@ const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
               return (
                 <li
                   id={`${dayKey}-${p.slug}`}
+                  data-slug={p.slug}
                   class="schedule-row grid grid-cols-1 sm:grid-cols-[12rem_1fr] sm:gap-4 sm:items-center py-2"
                 >
                   <a
@@ -126,6 +150,9 @@ const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
                     class="schedule-name text-base hover:text-[var(--color-accent)] transition-colors"
                   >
                     {p.name}
+                    <span class="schedule-name-town font-sans text-[10px] uppercase tracking-[0.12em] text-[var(--color-muted)] ml-2">
+                      {p.town.replace(/, NY.*$/, '')}
+                    </span>
                   </a>
                   <div
                     class:list={[
@@ -172,13 +199,30 @@ const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
         <a href="/" class="underline decoration-[var(--color-rule)]">← Back to the field guide</a>
       </p>
     </footer>
+
+    <script type="application/json" id="schedule-sort-meta" is:inline set:html={JSON.stringify(sortMeta)} />
   </main>
 </Layout>
 
 <script>
+  type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+  type SortMode = 'name' | 'time' | 'distance';
+  type Meta = Record<
+    string,
+    { town: string; distanceKm: number; openMin: Record<DayKey, number | null> }
+  >;
+
   const tabs = document.querySelectorAll<HTMLButtonElement>('[data-day-tab]');
   const panels = document.querySelectorAll<HTMLElement>('[data-day-panel]');
+  const sortButtons = document.querySelectorAll<HTMLButtonElement>('[data-sort]');
+  const sortMeta: Meta = JSON.parse(
+    document.getElementById('schedule-sort-meta')!.textContent || '{}',
+  );
   const dayFromGetDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+  const isDayKey = (s: string): s is DayKey =>
+    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].includes(s);
+
+  let currentSort: SortMode = 'name';
 
   function setActive(day: string) {
     tabs.forEach((t) => t.classList.toggle('is-active', t.dataset.dayTab === day));
@@ -190,20 +234,84 @@ const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
     } catch {}
   }
 
+  function compareForSort(slugA: string, slugB: string, dayKey: DayKey, mode: SortMode): number {
+    const a = sortMeta[slugA];
+    const b = sortMeta[slugB];
+    if (!a || !b) return 0;
+    if (mode === 'distance') {
+      return a.distanceKm - b.distanceKm;
+    }
+    if (mode === 'time') {
+      const am = a.openMin[dayKey];
+      const bm = b.openMin[dayKey];
+      if (am === null && bm === null) return 0;
+      if (am === null) return 1; // closed → bottom
+      if (bm === null) return -1;
+      return am - bm;
+    }
+    // name (A–Z): use slug as a stable proxy; rows are already in name order
+    // when freshly server-rendered, so compare DOM positions via slug map.
+    return slugA.localeCompare(slugB);
+  }
+
+  function applySort(mode: SortMode) {
+    currentSort = mode;
+    panels.forEach((panel) => {
+      const dayKey = panel.dataset.dayPanel;
+      if (!dayKey || !isDayKey(dayKey)) return;
+      const ul = panel.querySelector<HTMLUListElement>('ul');
+      if (!ul) return;
+      const items = Array.from(ul.querySelectorAll<HTMLLIElement>('li[data-slug]'));
+      items.sort((x, y) =>
+        compareForSort(x.dataset.slug!, y.dataset.slug!, dayKey, mode),
+      );
+      // For A–Z, re-sort by the place name attribute embedded in the link text.
+      if (mode === 'name') {
+        items.sort((x, y) => {
+          const xn = x.querySelector('.schedule-name')?.firstChild?.textContent?.trim() ?? '';
+          const yn = y.querySelector('.schedule-name')?.firstChild?.textContent?.trim() ?? '';
+          return xn.localeCompare(yn);
+        });
+      }
+      items.forEach((it) => ul.appendChild(it));
+    });
+    sortButtons.forEach((b) =>
+      b.classList.toggle('is-active', b.dataset.sort === mode),
+    );
+    document.documentElement.dataset.activeSort = mode;
+    try {
+      const url = new URL(window.location.href);
+      if (mode === 'name') url.searchParams.delete('sort');
+      else url.searchParams.set('sort', mode);
+      history.replaceState(null, '', url.toString());
+    } catch {}
+  }
+
   tabs.forEach((t) =>
     t.addEventListener('click', () => {
       const k = t.dataset.dayTab;
       if (k) setActive(k);
     }),
   );
+  sortButtons.forEach((b) =>
+    b.addEventListener('click', () => {
+      const m = b.dataset.sort as SortMode | undefined;
+      if (m) applySort(m);
+    }),
+  );
 
   document.documentElement.classList.add('schedule-js');
 
-  const urlDay = new URL(window.location.href).searchParams.get('day');
+  const urlParams = new URL(window.location.href).searchParams;
+  const urlDay = urlParams.get('day');
+  const urlSort = urlParams.get('sort');
   const today = dayFromGetDay[new Date().getDay()];
-  const initial =
+  const initialDay =
     urlDay && (dayFromGetDay as readonly string[]).includes(urlDay) ? urlDay : today;
-  setActive(initial);
+  const initialSort: SortMode =
+    urlSort === 'time' || urlSort === 'distance' ? urlSort : 'name';
+  setActive(initialDay);
+  applySort(initialSort);
 </script>
 
 <style>
@@ -230,6 +338,36 @@ const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
   .schedule-tab.is-active {
     color: var(--color-ink);
     border-bottom-color: var(--color-accent);
+  }
+
+  .schedule-sort-button {
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+    border-bottom: 1px dotted transparent;
+  }
+  .schedule-sort-button:hover {
+    color: var(--color-ink);
+  }
+  .schedule-sort-button.is-active {
+    color: var(--color-ink);
+    border-bottom-color: var(--color-accent);
+  }
+  /* No-JS users won't see this nav; hide it until JS runs. */
+  :global(html:not(.schedule-js)) .schedule-sort {
+    display: none;
+  }
+
+  /* Town label inline next to place name — only when sorted by distance. */
+  .schedule-name-town {
+    display: none;
+  }
+  :global(html[data-active-sort='distance']) .schedule-name-town {
+    display: inline;
   }
 
   .schedule-row {

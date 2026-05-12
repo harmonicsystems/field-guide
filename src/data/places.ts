@@ -74,6 +74,11 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/** Great-circle distance from the Village Green, in km. Defined for all places. */
+export function distanceFromCenter(place: Place): number {
+  return haversineKm(place.lat, place.lng, villageCenter.lat, villageCenter.lng);
+}
+
 /**
  * Walking minutes from the Village Green for places in Kinderhook proper.
  * Returns null for places outside the village (too far to walk in any
