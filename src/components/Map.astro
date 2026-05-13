@@ -2,6 +2,7 @@
 import {
   popularityLabel,
   walkingMinutesFromCenter,
+  villageCenter,
   type Place,
 } from '../data/places';
 import { events } from '../data/events';
@@ -42,6 +43,7 @@ const slimEvents = events
   data-points={JSON.stringify(points)}
   data-events={JSON.stringify(slimEvents)}
   data-single-zoom={singleZoom}
+  data-village-center={JSON.stringify(villageCenter)}
   role="region"
   aria-label={places.length === 1 ? `Map of ${places[0].name}` : 'Map of places in the field guide'}
 >
@@ -161,13 +163,37 @@ const slimEvents = events
     ).addTo(map);
 
     // 24×24 hit zone, 14×14 visual circle — finger-friendly on touch.
-    const icon = L.divIcon({
-      className: 'fg-marker',
-      html: '',
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-      popupAnchor: [0, -10],
-    });
+    // Per-place icon — class varies by current open status so closed/appt
+    // places render dimmed.
+    function iconFor(p: Point) {
+      const status = isOpenNow(p.schedule, now);
+      return L.divIcon({
+        className: status.open ? 'fg-marker' : 'fg-marker is-closed',
+        html: '',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+        popupAnchor: [0, -10],
+      });
+    }
+
+    // Village Green anchor — only on multi-place maps (skips detail pages).
+    const villageCenter: { lat: number; lng: number } = JSON.parse(
+      el.dataset.villageCenter ?? '{"lat":42.3953,"lng":-73.6984}',
+    );
+    if (points.length > 1) {
+      const anchorIcon = L.divIcon({
+        className: 'fg-marker-village-center',
+        html: '',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      });
+      L.marker([villageCenter.lat, villageCenter.lng], {
+        icon: anchorIcon,
+        title: 'Village Green — Kinderhook, NY',
+        interactive: false,
+        keyboard: false,
+      }).addTo(map);
+    }
 
     const now = new Date();
     const todayMidnight = new Date(now);
@@ -184,7 +210,7 @@ const slimEvents = events
     const markers = points.map((p) => {
       const eventsForPlace = eventsByPlace.get(p.slug) ?? [];
       const html = buildPopupHtml(p, eventsForPlace, now, todayMidnight, horizon);
-      return L.marker([p.lat, p.lng], { icon, title: p.name }).bindPopup(html);
+      return L.marker([p.lat, p.lng], { icon: iconFor(p), title: p.name }).bindPopup(html);
     });
     const group = L.featureGroup(markers).addTo(map);
 
@@ -219,6 +245,34 @@ const slimEvents = events
     border: 2px solid var(--color-paper);
     border-radius: 9999px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+    transition: opacity 0.2s, background-color 0.2s;
+  }
+  /* Currently closed (or by-appointment) places dim to a muted dot so
+     open places visually pop. The hit zone is unchanged. */
+  .fg-marker.is-closed::after {
+    background: var(--color-muted);
+    opacity: 0.45;
+    box-shadow: none;
+  }
+
+  /* Village Green anchor — quiet muted ring at the village center.
+     Sits beneath all place markers via lower z-index hack (added first). */
+  .fg-marker-village-center {
+    background: transparent;
+    border: 0;
+    position: relative;
+    pointer-events: none;
+  }
+  .fg-marker-village-center::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 26px;
+    height: 26px;
+    border: 1.5px solid var(--color-muted);
+    border-radius: 9999px;
+    opacity: 0.55;
   }
 
   .leaflet-container {
