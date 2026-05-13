@@ -6,6 +6,7 @@ import {
   type Place,
 } from '../data/places';
 import { events } from '../data/events';
+import { parks, type Park } from '../data/parks';
 
 interface Props {
   places: Place[];
@@ -36,12 +37,19 @@ const slimEvents = events
     end: e.end,
     recurring: e.recurring,
   }));
+
+// Parks and the AHET trail only appear on multi-place maps (the home-page view).
+const showOverlays = places.length > 1;
+const parksToShow: Park[] = showOverlays ? parks : [];
+const trailsHref: string | null = showOverlays ? '/trails.geojson' : null;
 ---
 
 <div
   class:list={['field-guide-map', className]}
   data-points={JSON.stringify(points)}
   data-events={JSON.stringify(slimEvents)}
+  data-parks={JSON.stringify(parksToShow)}
+  data-trails-href={trailsHref}
   data-single-zoom={singleZoom}
   data-village-center={JSON.stringify(villageCenter)}
   role="region"
@@ -176,23 +184,48 @@ const slimEvents = events
       });
     }
 
-    // Village Green anchor — only on multi-place maps (skips detail pages).
-    const villageCenter: { lat: number; lng: number } = JSON.parse(
-      el.dataset.villageCenter ?? '{"lat":42.3953,"lng":-73.6984}',
-    );
-    if (points.length > 1) {
-      const anchorIcon = L.divIcon({
-        className: 'fg-marker-village-center',
+    // Trail overlay — drawn first so it sits beneath all markers.
+    // Leaflet sets the path color via SVG attribute, which doesn't resolve
+    // CSS variables — we apply a className and style via CSS instead.
+    const trailsHref = el.dataset.trailsHref;
+    if (trailsHref) {
+      fetch(trailsHref)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((geo) => {
+          if (!geo) return;
+          L.geoJSON(geo, {
+            style: {
+              className: 'fg-trail',
+              weight: 2.5,
+              opacity: 0.65,
+              dashArray: '4 4',
+            },
+          }).addTo(map);
+        })
+        .catch(() => {});
+    }
+
+    // Park markers — outlined sage squares, visually distinct from filled
+    // place dots. Rendered before place markers so they sit beneath.
+    type ParkPoint = { slug: string; name: string; description: string; lat: number; lng: number };
+    const parksData: ParkPoint[] = JSON.parse(el.dataset.parks ?? '[]');
+    for (const park of parksData) {
+      const parkIcon = L.divIcon({
+        className: 'fg-marker-park',
         html: '',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+        popupAnchor: [0, -8],
       });
-      L.marker([villageCenter.lat, villageCenter.lng], {
-        icon: anchorIcon,
-        title: 'Village Green — Kinderhook, NY',
-        interactive: false,
-        keyboard: false,
-      }).addTo(map);
+      const desc = park.description ? `<div class="fg-park-desc">${park.description}</div>` : '';
+      L.marker([park.lat, park.lng], {
+        icon: parkIcon,
+        title: park.name,
+      })
+        .bindPopup(
+          `<div class="fg-popup-link"><strong>${park.name}</strong><span>Park</span>${desc}</div>`,
+        )
+        .addTo(map);
     }
 
     const now = new Date();
@@ -255,24 +288,40 @@ const slimEvents = events
     box-shadow: none;
   }
 
-  /* Village Green anchor — quiet muted ring at the village center.
-     Sits beneath all place markers via lower z-index hack (added first). */
-  .fg-marker-village-center {
+  /* Park markers — outlined sage squares. Different shape from place
+     dots so the eye reads them as a separate category. */
+  .fg-marker-park {
     background: transparent;
     border: 0;
     position: relative;
-    pointer-events: none;
   }
-  .fg-marker-village-center::after {
+  .fg-marker-park::after {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 26px;
-    height: 26px;
-    border: 1.5px solid var(--color-muted);
-    border-radius: 9999px;
-    opacity: 0.55;
+    top: 4px;
+    left: 4px;
+    width: 14px;
+    height: 14px;
+    background: transparent;
+    border: 1.5px solid var(--color-accent);
+    border-radius: 2px;
+    opacity: 0.75;
+  }
+  .fg-marker-park:hover::after {
+    opacity: 1;
+  }
+
+  .fg-park-desc {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--color-muted);
+    line-height: 1.35;
+  }
+
+  /* Albany-Hudson Electric Trail overlay (any GeoJSON LineString). */
+  .leaflet-overlay-pane svg path.fg-trail {
+    stroke: var(--color-accent);
+    fill: none;
   }
 
   .leaflet-container {
