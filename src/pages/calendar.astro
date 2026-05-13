@@ -237,7 +237,13 @@ function eventLocation(e: FieldEvent): string {
   function readUrlState(): void {
     const url = new URL(window.location.href);
     const v = url.searchParams.get('view');
-    if (v === 'month' || v === 'week' || v === 'weekend' || v === 'day') currentView = v;
+    if (v === 'month' || v === 'week' || v === 'weekend' || v === 'day') {
+      currentView = v;
+    } else if (window.innerWidth < 480) {
+      // Month grid is unreadable on narrow viewports; default to week
+      // (a vertical, horizontally-scrollable strip).
+      currentView = 'week';
+    }
     const dStr = url.searchParams.get('date');
     if (dStr && /^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
       try {

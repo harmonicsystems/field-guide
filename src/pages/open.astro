@@ -69,7 +69,7 @@ const sortMeta = Object.fromEntries(
     </header>
 
     <nav
-      class="schedule-tabs font-sans text-sm uppercase tracking-[0.15em] flex flex-wrap gap-x-6 gap-y-2 mb-6 pb-4 border-b border-[var(--color-rule)]"
+      class="schedule-tabs schedule-tabs-sticky font-sans text-sm uppercase tracking-[0.15em] flex flex-wrap gap-x-6 gap-y-2 mb-6 pt-3 pb-4 border-b border-[var(--color-rule)]"
       aria-label="Choose a day"
     >
       {
@@ -324,8 +324,17 @@ const sortMeta = Object.fromEntries(
   .schedule-panel { margin-bottom: 3rem; }
   :global(html.schedule-js) .schedule-panel { margin-bottom: 0; }
 
+  /* Sticky so the active day stays visible while scrolling 24 rows on mobile. */
+  .schedule-tabs-sticky {
+    position: sticky;
+    top: 0;
+    background: var(--color-paper);
+    z-index: 5;
+  }
+
   .schedule-tab {
-    padding-bottom: 0.25rem;
+    padding: 0.5rem 0.25rem;
+    margin: -0.25rem 0;
     border-bottom: 2px solid transparent;
     cursor: pointer;
     background: none;
@@ -334,6 +343,7 @@ const sortMeta = Object.fromEntries(
     border-right: 0;
     font: inherit;
     letter-spacing: inherit;
+    min-height: 44px;
   }
   .schedule-tab.is-active {
     color: var(--color-ink);

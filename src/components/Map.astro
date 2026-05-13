@@ -160,12 +160,13 @@ const slimEvents = events
       },
     ).addTo(map);
 
+    // 24×24 hit zone, 14×14 visual circle — finger-friendly on touch.
     const icon = L.divIcon({
       className: 'fg-marker',
       html: '',
-      iconSize: [14, 14],
-      iconAnchor: [7, 7],
-      popupAnchor: [0, -8],
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -10],
     });
 
     const now = new Date();
@@ -201,7 +202,19 @@ const slimEvents = events
     background: var(--color-paper);
   }
 
+  /* Transparent 24×24 hit zone wrapping a 14×14 visible dot. */
   .fg-marker {
+    background: transparent;
+    border: 0;
+    position: relative;
+  }
+  .fg-marker::after {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    width: 14px;
+    height: 14px;
     background: var(--color-accent);
     border: 2px solid var(--color-paper);
     border-radius: 9999px;
@@ -254,9 +267,9 @@ const slimEvents = events
   .fg-popup-status {
     display: inline-block;
     margin-top: 6px;
-    padding: 1px 6px;
+    padding: 2px 7px;
     font-family: var(--font-sans);
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     border-radius: 1px;
@@ -275,17 +288,17 @@ const slimEvents = events
   .fg-popup-event {
     display: block;
     margin-top: 6px;
-    font-size: 11px;
+    font-size: 12px;
     font-style: italic;
     color: var(--color-ink);
-    line-height: 1.3;
+    line-height: 1.35;
   }
 
   .fg-popup-walk {
     display: block;
     margin-top: 4px;
     font-family: var(--font-sans);
-    font-size: 10px;
+    font-size: 11px;
     color: var(--color-muted);
   }
 
