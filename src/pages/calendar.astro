@@ -128,7 +128,11 @@ function eventLocation(e: FieldEvent): string {
     <script type="application/json" id="calendar-events" is:inline set:html={JSON.stringify(events)} />
     <script type="application/json" id="calendar-places" is:inline set:html={JSON.stringify(slimPlaces)} />
 
-    <footer class="mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)]">
+    <footer class="mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)] space-y-3">
+      <p>
+        <a href="/calendar.ics" class="underline decoration-[var(--color-rule)]">Subscribe in your calendar app (.ics)</a>
+        — live feed updates as events are added.
+      </p>
       <p>
         <a href="/" class="underline decoration-[var(--color-rule)]">← Back to the field guide</a>
       </p>
