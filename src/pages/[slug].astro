@@ -1,7 +1,19 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Map from '../components/Map.astro';
-import { places, googleMapsUrl, placeLD, breadcrumbLD, type Place } from '../data/places';
+import {
+  places,
+  googleMapsUrl,
+  placeLD,
+  breadcrumbLD,
+  popularityLabel,
+  walkingMinutesFromCenter,
+  dayKeys,
+  dayLabels,
+  dayKeyFromDate,
+  type Place,
+} from '../data/places';
+import { events, eventsInRange } from '../data/events';
 
 export function getStaticPaths() {
   return places.map((place) => ({
@@ -26,6 +38,56 @@ const ldGraph = {
 const pageDescription = place.notes
   ? place.notes
   : `${place.name} in ${place.town}. ${place.category}. ${place.hours}.`;
+
+const popularity = popularityLabel(place.googleRating);
+const walkingMins = walkingMinutesFromCenter(place);
+
+// Build-time "today" — JS hydrates the live value on load.
+const buildToday = dayKeyFromDate(new Date());
+
+function fmt(s: string): string {
+  const [h, m] = s.split(':').map(Number);
+  const period = h >= 12 ? 'p' : 'a';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return m === 0 ? `${h12}${period}` : `${h12}:${m.toString().padStart(2, '0')}${period}`;
+}
+
+function fmtBlocks(blocks: Array<{ open: string; close: string }>): string {
+  return blocks.map((b) => fmt(b.open) + '–' + fmt(b.close)).join(', ');
+}
+
+type DayRow = { kind: 'open'; text: string } | { kind: 'closed' } | { kind: 'appt' };
+function describeDay(p: Place, dk: typeof dayKeys[number]): DayRow {
+  const day = p.schedule[dk];
+  if (day === 'appt') return { kind: 'appt' };
+  if (day.length === 0) return { kind: 'closed' };
+  return { kind: 'open', text: fmtBlocks(day) };
+}
+
+// Next 3 upcoming events at this place, within 60 days of build.
+const buildNow = new Date();
+const horizon = new Date(buildNow.getTime() + 60 * 24 * 60 * 60 * 1000);
+const upcoming = eventsInRange(
+  events.filter((e) => e.placeSlug === place.slug),
+  buildNow,
+  horizon,
+).slice(0, 3);
+
+function fmtEventDate(d: Date): string {
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function fmtEventTime(occ: { allDay: boolean; start: Date; end: Date | null }): string {
+  if (occ.allDay) return 'All day';
+  const start = fmt(occ.start.toTimeString().slice(0, 5));
+  if (!occ.end) return start;
+  const end = fmt(occ.end.toTimeString().slice(0, 5));
+  return start + '–' + end;
+}
 ---
 
 <Layout
@@ -49,6 +111,15 @@ const pageDescription = place.notes
       </p>
       <h1 class="text-4xl md:text-5xl leading-tight mb-4">{place.name}</h1>
       <p class="text-lg text-[var(--color-muted)]">{place.category}</p>
+      {
+        popularity && (
+          <p class="mt-3">
+            <span class="font-sans text-[11px] uppercase tracking-[0.15em] text-[var(--color-accent)] border border-[var(--color-rule)] py-1 px-2 rounded-sm">
+              {popularity}
+            </span>
+          </p>
+        )
+      }
     </header>
 
     {
@@ -58,40 +129,126 @@ const pageDescription = place.notes
         </div>
       ) : (
         <p class="text-[var(--color-muted)] italic mb-12">
-          (Notes coming soon.)
+          A note from us is on the way.
         </p>
       )
     }
 
-    <dl class="font-sans text-sm grid grid-cols-[max-content_1fr] gap-x-6 gap-y-3 border-t border-[var(--color-rule)] pt-6">
-      <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">Address</dt>
-      <dd>{place.address}</dd>
+    <section class="mb-12" data-hours-section data-today={buildToday}>
+      <div class="flex items-baseline justify-between gap-4 mb-4 pb-2 border-b border-[var(--color-rule)]">
+        <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+          Hours
+        </h2>
+        <span class="hours-status font-sans text-[11px] uppercase tracking-[0.12em] tabular-nums hidden" data-hours-status></span>
+      </div>
 
-      <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">Hours</dt>
-      <dd>{place.hours}</dd>
+      <ul class="font-sans text-sm space-y-1">
+        {dayKeys.map((dk) => {
+          const row = describeDay(place, dk);
+          return (
+            <li
+              data-day={dk}
+              class:list={[
+                'hours-row grid grid-cols-[5rem_1fr] gap-4 items-baseline py-1 pl-3 -ml-3 border-l-2 border-transparent transition-colors',
+                dk === buildToday && 'is-today',
+              ]}
+            >
+              <span class="hours-day text-[var(--color-muted)] uppercase tracking-[0.12em] text-[11px]">
+                {dayLabels[dk].short}
+              </span>
+              {row.kind === 'appt' && (
+                <span class="text-[var(--color-muted)] italic">by appointment</span>
+              )}
+              {row.kind === 'closed' && (
+                <span class="text-[var(--color-muted)]">—</span>
+              )}
+              {row.kind === 'open' && (
+                <span class="tabular-nums">{row.text}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
-      {
-        place.phone && (
-          <>
-            <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">
-              Phone
-            </dt>
-            <dd>
-              <a href={`tel:${place.phone.replace(/\s/g, '')}`}>{place.phone}</a>
-            </dd>
-          </>
-        )
-      }
+      <p class="mt-4 font-sans text-xs text-[var(--color-muted)] italic">
+        {place.hours}
+      </p>
+    </section>
 
-      <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">Map</dt>
-      <dd>
-        <a href={mapsUrl} target="_blank" rel="noopener" class="underline decoration-[var(--color-rule)]">
-          Open in Google Maps
-        </a>
-      </dd>
-    </dl>
+    {
+      upcoming.length > 0 && (
+        <section class="mb-12">
+          <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4 pb-2 border-b border-[var(--color-rule)]">
+            Upcoming here
+          </h2>
+          <ul class="space-y-3">
+            {upcoming.map((occ) => (
+              <li>
+                <a
+                  href={occ.event.url ?? '/calendar/'}
+                  class="block hover:text-[var(--color-accent)] transition-colors"
+                >
+                  <div class="font-sans text-xs uppercase tracking-[0.12em] text-[var(--color-muted)] tabular-nums">
+                    {fmtEventDate(occ.start)} · {fmtEventTime(occ)}
+                  </div>
+                  <div class="text-base mt-1">{occ.event.title}</div>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
 
-    <Map places={[place]} className="h-72 mt-10" singleZoom={15} />
+    <section class="mb-10">
+      <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4 pb-2 border-b border-[var(--color-rule)]">
+        Location
+      </h2>
+      <dl class="font-sans text-sm grid grid-cols-[max-content_1fr] gap-x-6 gap-y-3">
+        <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">Address</dt>
+        <dd>{place.address}</dd>
+
+        {
+          walkingMins !== null && (
+            <>
+              <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">Walking</dt>
+              <dd>
+                {walkingMins} min from the Village Green
+              </dd>
+            </>
+          )
+        }
+
+        {
+          place.phone && (
+            <>
+              <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">
+                Phone
+              </dt>
+              <dd>
+                <a href={`tel:${place.phone.replace(/\s/g, '')}`}>{place.phone}</a>
+              </dd>
+            </>
+          )
+        }
+
+        <dt class="text-[var(--color-muted)] uppercase tracking-wider text-xs pt-1">Map</dt>
+        <dd>
+          <a href={mapsUrl} target="_blank" rel="noopener" class="underline decoration-[var(--color-rule)]">
+            Open in Google Maps
+          </a>
+        </dd>
+      </dl>
+    </section>
+
+    <Map places={[place]} className="h-72 mt-4" singleZoom={15} />
+
+    <script
+      type="application/json"
+      id="schedule-data"
+      is:inline
+      set:html={JSON.stringify(place.schedule)}
+    />
 
     <footer class="mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)]">
       <p>
@@ -100,3 +257,70 @@ const pageDescription = place.notes
     </footer>
   </main>
 </Layout>
+
+<script>
+  import { isOpenNow, dayKeyFromDate, type Schedule } from '../data/places';
+
+  const dataEl = document.getElementById('schedule-data');
+  if (dataEl) {
+    const schedule: Schedule = JSON.parse(dataEl.textContent || '{}');
+    const now = new Date();
+    const todayKey = dayKeyFromDate(now);
+
+    // Live "today" highlight — overrides the build-time SSR pick if days drift.
+    document.querySelectorAll<HTMLElement>('[data-day]').forEach((el) => {
+      el.classList.toggle('is-today', el.dataset.day === todayKey);
+    });
+
+    // Status badge.
+    const statusEl = document.querySelector<HTMLElement>('[data-hours-status]');
+    if (statusEl) {
+      const status = isOpenNow(schedule, now);
+      function fmtTime(s: string): string {
+        const [h, m] = s.split(':').map(Number);
+        const period = h >= 12 ? 'p' : 'a';
+        const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+        return m === 0
+          ? `${h12}${period}`
+          : `${h12}:${String(m).padStart(2, '0')}${period}`;
+      }
+      if (status.open) {
+        statusEl.textContent = `Open · until ${fmtTime(status.closesAt)}`;
+        statusEl.classList.add('is-open');
+        statusEl.classList.remove('hidden');
+      } else if (status.reason === 'appt') {
+        statusEl.textContent = 'By appointment';
+        statusEl.classList.add('is-appt');
+        statusEl.classList.remove('hidden');
+      } else {
+        statusEl.textContent = 'Closed today';
+        statusEl.classList.add('is-closed');
+        statusEl.classList.remove('hidden');
+      }
+    }
+  }
+</script>
+
+<style>
+  .hours-row.is-today {
+    border-left-color: var(--color-accent);
+  }
+  .hours-row.is-today .hours-day {
+    color: var(--color-accent);
+  }
+
+  .hours-status {
+    padding: 2px 7px;
+    border-radius: 1px;
+  }
+  .hours-status.is-open {
+    background: var(--color-accent);
+    color: var(--color-paper);
+  }
+  .hours-status.is-appt,
+  .hours-status.is-closed {
+    background: transparent;
+    color: var(--color-muted);
+    border: 1px solid var(--color-rule);
+  }
+</style>
