@@ -6,7 +6,7 @@ import {
   type Place,
 } from '../data/places';
 import { events } from '../data/events';
-import { parks, type Park } from '../data/parks';
+import { landmarks, type Landmark } from '../data/landmarks';
 
 interface Props {
   places: Place[];
@@ -38,9 +38,10 @@ const slimEvents = events
     recurring: e.recurring,
   }));
 
-// Parks and the AHET trail only appear on multi-place maps (the home-page view).
+// Landmarks (parks + historic sites) and the trail overlay only appear on
+// multi-place maps (the home-page view).
 const showOverlays = places.length > 1;
-const parksToShow: Park[] = showOverlays ? parks : [];
+const landmarksToShow: Landmark[] = showOverlays ? landmarks : [];
 const trailsHref: string | null = showOverlays ? '/trails.geojson' : null;
 ---
 
@@ -48,7 +49,7 @@ const trailsHref: string | null = showOverlays ? '/trails.geojson' : null;
   class:list={['field-guide-map', className]}
   data-points={JSON.stringify(points)}
   data-events={JSON.stringify(slimEvents)}
-  data-parks={JSON.stringify(parksToShow)}
+  data-landmarks={JSON.stringify(landmarksToShow)}
   data-trails-href={trailsHref}
   data-single-zoom={singleZoom}
   data-village-center={JSON.stringify(villageCenter)}
@@ -205,25 +206,34 @@ const trailsHref: string | null = showOverlays ? '/trails.geojson' : null;
         .catch(() => {});
     }
 
-    // Park markers — outlined sage squares, visually distinct from filled
-    // place dots. Rendered before place markers so they sit beneath.
-    type ParkPoint = { slug: string; name: string; description: string; lat: number; lng: number };
-    const parksData: ParkPoint[] = JSON.parse(el.dataset.parks ?? '[]');
-    for (const park of parksData) {
-      const parkIcon = L.divIcon({
-        className: 'fg-marker-park',
+    // Landmark markers — outlined sage shapes, visually distinct from
+    // filled place dots. Parks render as squares; historic sites as
+    // diamonds (rotated squares). Both are tappable with a popup.
+    type LandmarkPoint = {
+      slug: string;
+      name: string;
+      kind: 'park' | 'historic';
+      description: string;
+      lat: number;
+      lng: number;
+    };
+    const landmarksData: LandmarkPoint[] = JSON.parse(el.dataset.landmarks ?? '[]');
+    for (const lm of landmarksData) {
+      const lmIcon = L.divIcon({
+        className: lm.kind === 'historic' ? 'fg-marker-landmark fg-marker-historic' : 'fg-marker-landmark fg-marker-park',
         html: '',
         iconSize: [22, 22],
         iconAnchor: [11, 11],
         popupAnchor: [0, -8],
       });
-      const desc = park.description ? `<div class="fg-park-desc">${park.description}</div>` : '';
-      L.marker([park.lat, park.lng], {
-        icon: parkIcon,
-        title: park.name,
+      const desc = lm.description ? `<div class="fg-park-desc">${lm.description}</div>` : '';
+      const subtype = lm.kind === 'historic' ? 'Historic site' : 'Park';
+      L.marker([lm.lat, lm.lng], {
+        icon: lmIcon,
+        title: lm.name,
       })
         .bindPopup(
-          `<div class="fg-popup-link"><strong>${park.name}</strong><span>Park</span>${desc}</div>`,
+          `<div class="fg-popup-link"><strong>${lm.name}</strong><span>${subtype}</span>${desc}</div>`,
         )
         .addTo(map);
     }
@@ -288,14 +298,14 @@ const trailsHref: string | null = showOverlays ? '/trails.geojson' : null;
     box-shadow: none;
   }
 
-  /* Park markers — outlined sage squares. Different shape from place
-     dots so the eye reads them as a separate category. */
-  .fg-marker-park {
+  /* Landmark markers — outlined sage shapes, distinct from filled place
+     dots. Parks: upright squares. Historic sites: rotated 45° (diamonds). */
+  .fg-marker-landmark {
     background: transparent;
     border: 0;
     position: relative;
   }
-  .fg-marker-park::after {
+  .fg-marker-landmark::after {
     content: '';
     position: absolute;
     top: 4px;
@@ -304,11 +314,18 @@ const trailsHref: string | null = showOverlays ? '/trails.geojson' : null;
     height: 14px;
     background: transparent;
     border: 1.5px solid var(--color-accent);
-    border-radius: 2px;
     opacity: 0.75;
+    transition: opacity 0.15s;
   }
-  .fg-marker-park:hover::after {
+  .fg-marker-landmark:hover::after {
     opacity: 1;
+  }
+  .fg-marker-park::after {
+    border-radius: 2px;
+  }
+  .fg-marker-historic::after {
+    transform: rotate(45deg);
+    transform-origin: center;
   }
 
   .fg-park-desc {
