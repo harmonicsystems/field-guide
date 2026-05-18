@@ -37,10 +37,10 @@ function detailLine(category: string): string {
 }
 
 function shortAddress(addr: string): string {
-  // Strip city/state/zip (last two comma parts); keep the street portion.
-  const parts = addr.split(',').map((s) => s.trim());
-  if (parts.length >= 3) return parts.slice(0, parts.length - 2).join(', ');
-  return parts[0];
+  // First comma-segment is always short enough to fit in a button.
+  // "Village Green, Broad St & Albany Ave, ..." → "Village Green"
+  // "3 Albany Ave, Kinderhook, ..." → "3 Albany Ave"
+  return addr.split(',')[0].trim();
 }
 
 function townLabel(town: string): string {
@@ -78,7 +78,7 @@ function telHref(phone: string | null): string | null {
       </div>
       <div class="control-row" role="group" aria-label="Sort">
         <span class="control-label">Sort</span>
-        <div class="control-buttons">
+        <div class="control-buttons control-buttons--sort">
           <button type="button" class="sort-button is-active" data-sort="distance">
             Nearest first
           </button>
@@ -131,10 +131,10 @@ function telHref(phone: string | null): string | null {
                     <h3 class="card-name">{p.name}</h3>
                   </div>
                   <p class="card-line">{detailLine(p.category)}</p>
-                  <p class="card-line">
-                    {townLabel(p.town)}
-                    {walking ? ` · ${walking} min walk from Village Green` : ''}
-                  </p>
+                  <p class="card-line">{townLabel(p.town)}</p>
+                  {walking !== null && (
+                    <p class="card-line">{walking} min walk from Village Green</p>
+                  )}
                 </a>
                 <div class="card-actions">
                   {tel ? (
@@ -250,7 +250,7 @@ function telHref(phone: string | null): string | null {
     const t = fmtTime(next.time);
     if (next.daysAhead === 0) return `opens at ${t}`;
     if (next.daysAhead === 1) return `opens tomorrow at ${t}`;
-    return `opens ${dayLabels[next.day].long.toLowerCase()} at ${t}`;
+    return `opens ${dayLabels[next.day].long} at ${t}`;
   }
 
   const now = new Date();
@@ -565,6 +565,12 @@ function telHref(phone: string | null): string | null {
     border-color: var(--color-accent);
   }
 
+  /* Sort button row uses a 3-column grid so each button is always equal width. */
+  .control-buttons--sort {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
   /* Sort buttons (larger, more emphatic) */
   .sort-button {
     font-family: var(--font-sans);
@@ -574,11 +580,12 @@ function telHref(phone: string | null): string | null {
     color: var(--color-ink);
     border: 1.5px solid var(--color-ink);
     border-radius: 3px;
-    padding: 0.625rem 0.875rem;
+    padding: 0.625rem 0.5rem;
     min-height: 48px;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
-    flex: 1 1 auto;
+    text-align: center;
+    line-height: 1.3;
   }
   .sort-button:hover,
   .sort-button:focus-visible {
@@ -685,7 +692,7 @@ function telHref(phone: string | null): string | null {
 
   .card-heading {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.625rem;
     margin: 0 0 0.5rem;
   }
@@ -693,8 +700,8 @@ function telHref(phone: string | null): string | null {
     display: inline-flex;
     flex-shrink: 0;
     color: var(--color-accent);
-    /* Optical alignment with serif cap-height. */
-    margin-top: 0.125rem;
+    /* Nudge down to align with serif cap-height on first line. */
+    margin-top: 0.3rem;
   }
   .card-name {
     font-family: var(--font-serif);
@@ -712,7 +719,7 @@ function telHref(phone: string | null): string | null {
   }
   .card-line + .card-line {
     color: var(--color-muted);
-    margin-top: 0.125rem;
+    margin-top: 0.2rem;
   }
 
   /* ---------- actions ---------- */
