@@ -1,0 +1,829 @@
+---
+import Layout from '../layouts/Layout.astro';
+import {
+  places,
+  googleMapsUrl,
+  walkingMinutesFromCenter,
+  distanceFromCenter,
+} from '../data/places';
+import {
+  placeCategoryInfo,
+  uxCategoryOrder,
+  uxCategoryLabels,
+} from '../data/categories';
+import Icon from '../components/Icon.astro';
+
+const sortedPlaces = [...places].sort((a, b) => a.name.localeCompare(b.name));
+
+// Slim payload for the client: schedule + sort/filter metadata per slug.
+const placeMeta = Object.fromEntries(
+  sortedPlaces.map((p) => {
+    const info = placeCategoryInfo(p);
+    return [
+      p.slug,
+      {
+        schedule: p.schedule,
+        distanceKm: distanceFromCenter(p),
+        uxCategory: info.uxCategory,
+      },
+    ];
+  }),
+);
+
+function detailLine(category: string): string {
+  // "Market — nursery / farm market / ice cream" → "nursery / farm market / ice cream"
+  const parts = category.split(' — ');
+  return parts.length > 1 ? parts.slice(1).join(' — ') : category;
+}
+
+function shortAddress(addr: string): string {
+  // Strip city/state/zip (last two comma parts); keep the street portion.
+  const parts = addr.split(',').map((s) => s.trim());
+  if (parts.length >= 3) return parts.slice(0, parts.length - 2).join(', ');
+  return parts[0];
+}
+
+function townLabel(town: string): string {
+  return town.replace(/, NY.*$/, '');
+}
+
+function telHref(phone: string | null): string | null {
+  if (!phone) return null;
+  return `tel:${phone.replace(/[^\d+]/g, '')}`;
+}
+---
+
+<Layout
+  title="Today — Field Guide"
+  description="What's open right now in Kinderhook, NY and nearby — large-type, plain-spoken."
+>
+  <main class="today-main">
+    <header class="today-header">
+      <p class="today-eyebrow">Field Guide · Kinderhook</p>
+      <h1 class="today-date" id="today-date">Today</h1>
+      <p class="today-time" id="today-time" aria-hidden="true"></p>
+    </header>
+
+    <nav class="today-controls" aria-label="Filter and sort">
+      <div class="control-row" role="group" aria-label="Show">
+        <span class="control-label">Show</span>
+        <div class="control-buttons">
+          <button type="button" class="chip is-active" data-filter="all">All</button>
+          {uxCategoryOrder.map((c) => (
+            <button type="button" class="chip" data-filter={c}>
+              {uxCategoryLabels[c]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div class="control-row" role="group" aria-label="Sort">
+        <span class="control-label">Sort</span>
+        <div class="control-buttons">
+          <button type="button" class="sort-button is-active" data-sort="distance">
+            Nearest first
+          </button>
+          <button type="button" class="sort-button" data-sort="time">
+            Closes soonest
+          </button>
+          <button type="button" class="sort-button" data-sort="name">A–Z</button>
+        </div>
+      </div>
+    </nav>
+
+    <section class="today-section" data-section="open" hidden>
+      <h2 class="today-section-heading">Open right now</h2>
+      <ul class="today-list" data-list="open"></ul>
+    </section>
+
+    <section class="today-section" data-section="later" hidden>
+      <h2 class="today-section-heading">Opening later today</h2>
+      <ul class="today-list" data-list="later"></ul>
+    </section>
+
+    <section class="today-section" data-section="closed" hidden>
+      <h2 class="today-section-heading">Closed today</h2>
+      <p class="today-section-sub">Here's when each opens next, so you can plan ahead.</p>
+      <ul class="today-list" data-list="closed"></ul>
+    </section>
+
+    <section class="today-section today-section-fallback" data-section="fallback">
+      <h2 class="today-section-heading">All places</h2>
+      <ul class="today-list" data-list="fallback">
+        {
+          sortedPlaces.map((p) => {
+            const walking = walkingMinutesFromCenter(p);
+            const tel = telHref(p.phone);
+            const info = placeCategoryInfo(p);
+            return (
+              <li
+                class="card"
+                data-slug={p.slug}
+                data-ux-category={info.uxCategory}
+                data-distance-km={distanceFromCenter(p).toFixed(3)}
+                data-name={p.name}
+              >
+                <p class="card-status" data-status>&nbsp;</p>
+                <a href={`/${p.slug}/`} class="card-link">
+                  <div class="card-heading">
+                    <span class="card-icon" aria-hidden="true">
+                      <Icon name={info.icon} size={32} />
+                    </span>
+                    <h3 class="card-name">{p.name}</h3>
+                  </div>
+                  <p class="card-line">{detailLine(p.category)}</p>
+                  <p class="card-line">
+                    {townLabel(p.town)}
+                    {walking ? ` · ${walking} min walk from Village Green` : ''}
+                  </p>
+                </a>
+                <div class="card-actions">
+                  {tel ? (
+                    <button
+                      type="button"
+                      class="card-action card-action-call"
+                      data-tel={tel}
+                      data-phone={p.phone}
+                      aria-label={`Show phone number for ${p.name}`}
+                    >
+                      <span class="card-action-icon" data-call-icon aria-hidden="true">
+                        <Icon name="phone" size={26} />
+                      </span>
+                      <span class="card-action-label" data-call-label>Call</span>
+                      <span class="card-action-detail" data-call-detail hidden></span>
+                    </button>
+                  ) : (
+                    <span class="card-action card-action-disabled" aria-disabled="true">
+                      <span class="card-action-icon" aria-hidden="true">
+                        <Icon name="phone" size={26} />
+                      </span>
+                      <span class="card-action-label">No phone</span>
+                      <span class="card-action-detail">See website</span>
+                    </span>
+                  )}
+                  <a
+                    href={googleMapsUrl(p)}
+                    class="card-action"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    <span class="card-action-icon" aria-hidden="true">
+                      <Icon name="map-pin" size={26} />
+                    </span>
+                    <span class="card-action-label">Directions</span>
+                    <span class="card-action-detail">{shortAddress(p.address)}</span>
+                  </a>
+                </div>
+              </li>
+            );
+          })
+        }
+      </ul>
+    </section>
+
+    <footer class="today-footer">
+      <a href="/">Browse the full guide →</a>
+    </footer>
+
+    <script
+      type="application/json"
+      id="place-meta"
+      is:inline
+      set:html={JSON.stringify(placeMeta)}
+    />
+  </main>
+</Layout>
+
+<script>
+  import {
+    isOpenNow,
+    dayLabels,
+    type DayKey,
+    type Schedule,
+  } from '../data/places';
+  import type { UxCategory } from '../data/categories';
+
+  type PlaceMeta = {
+    schedule: Schedule;
+    distanceKm: number;
+    uxCategory: UxCategory;
+  };
+
+  const meta: Record<string, PlaceMeta> = JSON.parse(
+    document.getElementById('place-meta')!.textContent || '{}',
+  );
+
+  const dayFromGetDay = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+  function fmtTime(s: string): string {
+    const [h, m] = s.split(':').map(Number);
+    const period = h >= 12 ? 'pm' : 'am';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return m === 0
+      ? `${h12} ${period}`
+      : `${h12}:${String(m).padStart(2, '0')} ${period}`;
+  }
+
+  function timeToMin(s: string): number {
+    const [h, m] = s.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  type NextOpen = { day: DayKey; time: string; daysAhead: number };
+
+  function findNextOpen(schedule: Schedule, now: Date): NextOpen | null {
+    const todayIdx = now.getDay();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    for (let offset = 0; offset < 7; offset++) {
+      const dk = dayFromGetDay[(todayIdx + offset) % 7] as DayKey;
+      const day = schedule[dk];
+      if (day === 'appt' || day.length === 0) continue;
+      for (const block of day) {
+        const startMin = timeToMin(block.open);
+        if (offset === 0 && startMin <= nowMin) continue;
+        return { day: dk, time: block.open, daysAhead: offset };
+      }
+    }
+    return null;
+  }
+
+  function nextOpenLabel(next: NextOpen): string {
+    const t = fmtTime(next.time);
+    if (next.daysAhead === 0) return `opens at ${t}`;
+    if (next.daysAhead === 1) return `opens tomorrow at ${t}`;
+    return `opens ${dayLabels[next.day].long.toLowerCase()} at ${t}`;
+  }
+
+  const now = new Date();
+  const todayKey = dayFromGetDay[now.getDay()] as DayKey;
+
+  // Set the date / time heading.
+  const dateHeading = document.getElementById('today-date');
+  if (dateHeading) {
+    dateHeading.textContent = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    });
+  }
+  const timeEl = document.getElementById('today-time');
+  if (timeEl) {
+    timeEl.textContent = now.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
+
+  const sections = {
+    open: document.querySelector<HTMLElement>('[data-section="open"]')!,
+    later: document.querySelector<HTMLElement>('[data-section="later"]')!,
+    closed: document.querySelector<HTMLElement>('[data-section="closed"]')!,
+    fallback: document.querySelector<HTMLElement>('[data-section="fallback"]')!,
+  };
+  const lists = {
+    open: document.querySelector<HTMLElement>('[data-list="open"]')!,
+    later: document.querySelector<HTMLElement>('[data-list="later"]')!,
+    closed: document.querySelector<HTMLElement>('[data-list="closed"]')!,
+  };
+
+  // JS available — hide flat fallback and use grouped sections.
+  sections.fallback.hidden = true;
+
+  type Bucket = 'open' | 'later' | 'closed';
+
+  const cards = Array.from(
+    document.querySelectorAll<HTMLLIElement>('[data-list="fallback"] li[data-slug]'),
+  );
+
+  /**
+   * Move each card to the right section, set status copy, and stash
+   * sort keys on the card so we can re-sort cheaply.
+   */
+  for (const card of cards) {
+    const slug = card.dataset.slug!;
+    const m = meta[slug];
+    if (!m) continue;
+    const statusEl = card.querySelector<HTMLElement>('[data-status]')!;
+    const status = isOpenNow(m.schedule, now);
+
+    let bucket: Bucket;
+    /** Minutes-since-now sort key, used by "Closes soonest". Lower = more imminent. */
+    let timeKey: number;
+
+    if (status.open) {
+      statusEl.textContent = `Open · closes ${fmtTime(status.closesAt)}`;
+      statusEl.classList.add('is-open');
+      bucket = 'open';
+      timeKey = timeToMin(status.closesAt);
+    } else if (m.schedule[todayKey] === 'appt') {
+      statusEl.textContent = 'By appointment · check with them';
+      statusEl.classList.add('is-appt');
+      bucket = 'later';
+      timeKey = 24 * 60; // sort to the bottom of "later"
+    } else {
+      const next = findNextOpen(m.schedule, now);
+      if (next && next.daysAhead === 0) {
+        statusEl.textContent = `Closed now · ${nextOpenLabel(next)}`;
+        statusEl.classList.add('is-later');
+        bucket = 'later';
+        timeKey = timeToMin(next.time);
+      } else if (next) {
+        statusEl.textContent = `Closed today · ${nextOpenLabel(next)}`;
+        statusEl.classList.add('is-closed');
+        bucket = 'closed';
+        timeKey = next.daysAhead * 24 * 60 + timeToMin(next.time);
+      } else {
+        statusEl.textContent = 'Closed';
+        statusEl.classList.add('is-closed');
+        bucket = 'closed';
+        timeKey = 99999;
+      }
+    }
+
+    card.dataset.bucket = bucket;
+    card.dataset.timeKey = String(timeKey);
+    lists[bucket].appendChild(card);
+  }
+
+  // ---------- filter + sort ----------
+
+  type SortMode = 'distance' | 'time' | 'name';
+  type FilterValue = 'all' | UxCategory;
+
+  let currentSort: SortMode = 'distance';
+  let currentFilter: FilterValue = 'all';
+
+  function applyFilter() {
+    for (const card of cards) {
+      const cat = card.dataset.uxCategory as UxCategory;
+      const visible = currentFilter === 'all' || cat === currentFilter;
+      card.hidden = !visible;
+    }
+    // Hide sections that have no visible cards.
+    for (const key of ['open', 'later', 'closed'] as const) {
+      const list = lists[key];
+      const anyVisible = Array.from(list.children).some(
+        (el) => !(el as HTMLElement).hidden,
+      );
+      sections[key].hidden = !anyVisible;
+    }
+  }
+
+  function applySort() {
+    for (const key of ['open', 'later', 'closed'] as const) {
+      const list = lists[key];
+      const items = Array.from(list.querySelectorAll<HTMLLIElement>('li[data-slug]'));
+      items.sort((a, b) => {
+        if (currentSort === 'distance') {
+          const ad = parseFloat(a.dataset.distanceKm || '0');
+          const bd = parseFloat(b.dataset.distanceKm || '0');
+          return ad - bd;
+        }
+        if (currentSort === 'time') {
+          const at = parseFloat(a.dataset.timeKey || '0');
+          const bt = parseFloat(b.dataset.timeKey || '0');
+          return at - bt;
+        }
+        return (a.dataset.name || '').localeCompare(b.dataset.name || '');
+      });
+      items.forEach((item) => list.appendChild(item));
+    }
+  }
+
+  function updateUrl() {
+    try {
+      const url = new URL(window.location.href);
+      if (currentSort === 'distance') url.searchParams.delete('sort');
+      else url.searchParams.set('sort', currentSort);
+      if (currentFilter === 'all') url.searchParams.delete('show');
+      else url.searchParams.set('show', currentFilter);
+      history.replaceState(null, '', url.toString());
+    } catch {}
+  }
+
+  const filterButtons = document.querySelectorAll<HTMLButtonElement>('[data-filter]');
+  const sortButtons = document.querySelectorAll<HTMLButtonElement>('[data-sort]');
+
+  function setFilter(value: FilterValue) {
+    currentFilter = value;
+    filterButtons.forEach((b) =>
+      b.classList.toggle('is-active', b.dataset.filter === value),
+    );
+    applyFilter();
+    updateUrl();
+  }
+  function setSort(value: SortMode) {
+    currentSort = value;
+    sortButtons.forEach((b) =>
+      b.classList.toggle('is-active', b.dataset.sort === value),
+    );
+    applySort();
+    updateUrl();
+  }
+
+  filterButtons.forEach((b) =>
+    b.addEventListener('click', () => setFilter(b.dataset.filter as FilterValue)),
+  );
+  sortButtons.forEach((b) =>
+    b.addEventListener('click', () => setSort(b.dataset.sort as SortMode)),
+  );
+
+  // Initial state from URL (if present), else defaults.
+  const urlParams = new URL(window.location.href).searchParams;
+  const urlSort = urlParams.get('sort');
+  const urlShow = urlParams.get('show');
+  const initSort: SortMode =
+    urlSort === 'time' || urlSort === 'name' ? urlSort : 'distance';
+  const initFilter: FilterValue =
+    urlShow === 'food' || urlShow === 'shopping' || urlShow === 'arts'
+      ? (urlShow as UxCategory)
+      : 'all';
+
+  setSort(initSort);
+  setFilter(initFilter);
+
+  // ---------- two-tap confirm before dialing ----------
+  //
+  // First tap reveals the phone number; second tap dials. This avoids
+  // accidental calls from someone fat-fingering a button.
+
+  document
+    .querySelectorAll<HTMLButtonElement>('.card-action-call')
+    .forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tel = btn.dataset.tel;
+        const phone = btn.dataset.phone;
+        if (!tel || !phone) return;
+
+        if (btn.dataset.armed === 'true') {
+          window.location.href = tel;
+          return;
+        }
+
+        btn.dataset.armed = 'true';
+        btn.classList.add('is-armed');
+        const icon = btn.querySelector<HTMLElement>('[data-call-icon]');
+        const label = btn.querySelector<HTMLElement>('[data-call-label]');
+        const detail = btn.querySelector<HTMLElement>('[data-call-detail]');
+        if (icon) icon.hidden = true;
+        if (label) label.textContent = phone;
+        if (detail) {
+          detail.textContent = 'Tap to dial';
+          detail.hidden = false;
+        }
+        btn.setAttribute('aria-label', `Call ${phone}. Tap again to dial.`);
+      });
+    });
+</script>
+
+<style>
+  /* Senior-friendly type scale. Reading distance ≈ phone in-hand. */
+  .today-main {
+    max-width: 36rem;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 4rem;
+    font-size: 1.125rem;
+    line-height: 1.5;
+  }
+
+  /* ---------- header ---------- */
+  .today-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .today-eyebrow {
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin: 0 0 0.5rem;
+  }
+  .today-date {
+    font-size: 2rem;
+    line-height: 1.15;
+    margin: 0;
+    color: var(--color-ink);
+    font-weight: 400;
+  }
+  .today-time {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    color: var(--color-muted);
+    margin: 0.5rem 0 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- controls (filter + sort) ---------- */
+  .today-controls {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-rule);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .control-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .control-label {
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .control-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Chips (filter — smaller, pill-shaped) */
+  .chip {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    border: 1.5px solid var(--color-rule);
+    border-radius: 999px;
+    padding: 0.5rem 1rem;
+    min-height: 44px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .chip:hover,
+  .chip:focus-visible {
+    border-color: var(--color-ink);
+    outline: none;
+  }
+  .chip.is-active {
+    background: var(--color-accent);
+    color: var(--color-paper);
+    border-color: var(--color-accent);
+  }
+
+  /* Sort buttons (larger, more emphatic) */
+  .sort-button {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 600;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    border: 1.5px solid var(--color-ink);
+    border-radius: 3px;
+    padding: 0.625rem 0.875rem;
+    min-height: 48px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    flex: 1 1 auto;
+  }
+  .sort-button:hover,
+  .sort-button:focus-visible {
+    background: var(--color-ink);
+    color: var(--color-paper);
+    outline: none;
+  }
+  .sort-button.is-active {
+    background: var(--color-accent);
+    color: var(--color-paper);
+    border-color: var(--color-accent);
+  }
+
+  /* ---------- sections ---------- */
+  .today-section {
+    margin: 2.5rem 0;
+  }
+  .today-section[hidden] {
+    display: none;
+  }
+  .today-section-heading {
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-ink);
+    margin: 0 0 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .today-section-sub {
+    font-size: 1rem;
+    color: var(--color-muted);
+    margin: 0 0 1.25rem;
+    font-style: italic;
+  }
+
+  .today-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* ---------- card ---------- */
+  .card {
+    background: var(--color-paper);
+    border: 1px solid var(--color-rule);
+    border-radius: 4px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+  }
+
+  .card-status {
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin: 0;
+    color: var(--color-muted);
+  }
+  .card-status.is-open {
+    color: var(--color-paper);
+    background: var(--color-accent);
+    align-self: flex-start;
+    padding: 0.375rem 0.625rem;
+    border-radius: 2px;
+  }
+  .card-status.is-later {
+    color: var(--color-accent);
+    align-self: flex-start;
+    padding: 0.375rem 0.625rem;
+    border: 1.5px solid var(--color-accent);
+    border-radius: 2px;
+  }
+  .card-status.is-appt {
+    color: var(--color-ink);
+    align-self: flex-start;
+    padding: 0.375rem 0.625rem;
+    border: 1.5px solid var(--color-rule);
+    border-radius: 2px;
+  }
+  .card-status.is-closed {
+    color: var(--color-muted);
+  }
+
+  .card-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    /* Whole upper card is a tap target to the detail page. */
+    min-height: 44px;
+  }
+  .card-link:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
+    border-radius: 2px;
+  }
+
+  .card-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    margin: 0 0 0.5rem;
+  }
+  .card-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--color-accent);
+    /* Optical alignment with serif cap-height. */
+    margin-top: 0.125rem;
+  }
+  .card-name {
+    font-family: var(--font-serif);
+    font-size: 1.625rem;
+    line-height: 1.2;
+    margin: 0;
+    color: var(--color-ink);
+    font-weight: 400;
+  }
+  .card-line {
+    font-size: 1.0625rem;
+    line-height: 1.5;
+    margin: 0;
+    color: var(--color-ink);
+  }
+  .card-line + .card-line {
+    color: var(--color-muted);
+    margin-top: 0.125rem;
+  }
+
+  /* ---------- actions ---------- */
+  .card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.625rem;
+    margin-top: 0.25rem;
+  }
+  .card-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    text-decoration: none;
+    color: var(--color-ink);
+    background: var(--color-paper);
+    border: 1.5px solid var(--color-ink);
+    border-radius: 3px;
+    padding: 0.75rem 0.625rem;
+    min-height: 72px;
+    font-family: var(--font-sans);
+    gap: 0.25rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .card-action:hover,
+  .card-action:focus-visible {
+    background: var(--color-ink);
+    color: var(--color-paper);
+    outline: none;
+  }
+  .card-action-icon {
+    display: inline-flex;
+    color: inherit;
+    line-height: 1;
+  }
+  .card-action-icon[hidden] {
+    display: none;
+  }
+  .card-action-label {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .card-action-detail {
+    font-size: 0.8125rem;
+    letter-spacing: 0.04em;
+    opacity: 0.85;
+    font-variant-numeric: tabular-nums;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card-action-detail[hidden] {
+    display: none;
+  }
+  .card-action-disabled {
+    color: var(--color-muted);
+    border-color: var(--color-rule);
+    cursor: default;
+  }
+  .card-action-disabled:hover {
+    background: var(--color-paper);
+    color: var(--color-muted);
+  }
+
+  /* Armed state: phone number revealed, awaiting confirmation tap. */
+  .card-action-call.is-armed {
+    border-color: var(--color-accent);
+    border-width: 2px;
+    background: var(--color-paper);
+    color: var(--color-accent);
+  }
+  .card-action-call.is-armed:hover,
+  .card-action-call.is-armed:focus-visible {
+    background: var(--color-accent);
+    color: var(--color-paper);
+  }
+  .card-action-call.is-armed .card-action-label {
+    font-size: 1.125rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  .card-action-call.is-armed .card-action-detail {
+    opacity: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+  }
+
+  /* ---------- footer ---------- */
+  .today-footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-rule);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+  }
+  .today-footer a {
+    color: var(--color-muted);
+    text-decoration: none;
+    display: inline-block;
+    min-height: 44px;
+    line-height: 44px;
+  }
+
+  /* ---------- no-JS fallback ---------- */
+  .today-section-fallback .card-status {
+    display: none;
+  }
+</style>
