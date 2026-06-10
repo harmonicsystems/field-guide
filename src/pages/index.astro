@@ -18,7 +18,10 @@ const ld = collectionLD(places, base);
 const statusSchedules = Object.fromEntries(places.map((p) => [p.slug, p.schedule]));
 ---
 
-<Layout title="Field Guide — Kinderhook, NY">
+<Layout
+  title="Kinderhook, NY field guide — what to do, eat, see"
+  description="What to do in Kinderhook, NY — restaurants, shops, trails, and events. A curated field guide to Old Kinderhook, Columbia County, and the upper Hudson Valley."
+>
   <script
     slot="head"
     type="application/ld+json"

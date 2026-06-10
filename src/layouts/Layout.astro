@@ -4,11 +4,14 @@ import '../styles/global.css';
 interface Props {
   title: string;
   description?: string;
+  /** Optional path to a Markdown alternate of this page, e.g. "/hamrahs.md". */
+  mdAlternate?: string;
 }
 
 const {
   title,
-  description = 'A field guide to Kinderhook, NY and the small places nearby — kept by Feed & Seed, a barn in Kinderhook.',
+  description = 'What to do in Kinderhook, NY — restaurants, shops, trails, and events in Old Kinderhook, Columbia County, and the upper Hudson Valley. Kept by Feed & Seed.',
+  mdAlternate,
 } = Astro.props;
 
 const siteUrl = Astro.site ?? new URL('https://field-guide.feed-and-seed.com');
@@ -28,6 +31,9 @@ const ogImage = new URL('/og.svg', siteUrl).toString();
     <link rel="alternate" type="application/json" title="Field Guide — places (JSON)" href="/places.json" />
     <link rel="alternate" type="text/markdown" title="Field Guide — LLM index" href="/llms.txt" />
     <link rel="alternate" type="text/calendar" title="Field Guide — events (iCal)" href="/calendar.ics" />
+    {mdAlternate && (
+      <link rel="alternate" type="text/markdown" title={`${title} (Markdown)`} href={mdAlternate} />
+    )}
     <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap-index.xml" />
     <link rel="preconnect" href="https://basemaps.cartocdn.com" crossorigin />
     <meta name="theme-color" content="#f7f4ec" />

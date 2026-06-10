@@ -35,9 +35,11 @@ const ldGraph = {
   '@context': 'https://schema.org',
   '@graph': [placeLD(place, base), breadcrumbLD(place, base)],
 };
-const pageDescription = place.notes
-  ? place.notes
-  : `${place.name} in ${place.town}. ${place.category}. ${place.hours}.`;
+const nearKinderhook = place.town !== 'Kinderhook, NY' ? ', near Kinderhook' : '';
+const fallbackBase = `${place.name} in ${place.town}${nearKinderhook}. ${place.category}.`;
+const fallbackWithHours = `${fallbackBase} ${place.hours}.`;
+const fallbackDesc = fallbackWithHours.length <= 160 ? fallbackWithHours : fallbackBase;
+const pageDescription = place.notes ? place.notes : fallbackDesc;
 
 const popularity = popularityLabel(place.googleRating);
 const walkingMins = walkingMinutesFromCenter(place);
@@ -91,8 +93,9 @@ function fmtEventTime(occ: { allDay: boolean; start: Date; end: Date | null }): 
 ---
 
 <Layout
-  title={`${place.name} — Field Guide`}
+  title={`${place.name} — ${place.town}`}
   description={pageDescription}
+  mdAlternate={`/${place.slug}.md`}
 >
   <script
     slot="head"
