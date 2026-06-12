@@ -147,7 +147,8 @@ for (const file of htmlFiles) {
     /^[^/]+\/index\.html$/.test(rel) &&
     !rel.startsWith('open/') &&
     !rel.startsWith('today/') &&
-    !rel.startsWith('calendar/');
+    !rel.startsWith('calendar/') &&
+    !rel.startsWith('notes/');
   if (isDetailPage) {
     const slug = rel.split('/')[0];
     const alts = findAllLinks(html, 'alternate').filter(
@@ -169,7 +170,7 @@ for (const [desc, paths] of descs) {
   if (paths.length > 1) err(`Duplicate description across: ${paths.join(', ')}`);
 }
 
-// /llms.txt.
+// /llms.txt and friends.
 const llmsPath = join(DIST, 'llms.txt');
 if (!existsSync(llmsPath)) {
   err('llms.txt: not found in dist/');
@@ -178,6 +179,18 @@ if (!existsSync(llmsPath)) {
   if (body.trim().length < 500) {
     err(`llms.txt: only ${body.length} chars — looks too short`);
   }
+}
+const llmsFullPath = join(DIST, 'llms-full.txt');
+if (!existsSync(llmsFullPath)) {
+  err('llms-full.txt: not found in dist/');
+} else {
+  const body = readFileSync(llmsFullPath, 'utf8');
+  if (body.trim().length < 2000) {
+    err(`llms-full.txt: only ${body.length} chars — looks too short for a full export`);
+  }
+}
+for (const feedFile of ['rss.xml', 'feed.json']) {
+  if (!existsSync(join(DIST, feedFile))) err(`${feedFile}: not found in dist/`);
 }
 
 // One {slug}.md per place.

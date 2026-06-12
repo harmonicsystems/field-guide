@@ -1,4 +1,37 @@
+# Everyone is welcome, including AI crawlers — this guide is written to be
+# read, cited, and answered from. See /llms.txt and /llms-full.txt.
+
 User-agent: *
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Applebot-Extended
 Allow: /
 
 Sitemap: https://field-guide.feed-and-seed.com/sitemap-index.xml

@@ -40,6 +40,14 @@ export type SchemaType =
   | 'ArtGallery'
   | 'Library';
 
+/**
+ * Operating season, 'MM-DD' inclusive on both ends. Only for places with a
+ * KNOWN season (e.g. the farmers market's published May–Oct). When we only
+ * know one end ("closes around Nov 1"), use `hoursNote` prose instead —
+ * never guess the other end.
+ */
+export type Season = { opens: string; closes: string };
+
 export interface Place {
   slug: string;
   name: string;
@@ -49,6 +57,12 @@ export interface Place {
   phone: string | null;
   hours: string;
   schedule: Schedule;
+  /** Known operating season. Out-of-season places render "Closed for the season". */
+  season?: Season;
+  /** Honest prose for irregular/seasonal hours that don't fit the structured fields. */
+  hoursNote?: string;
+  /** ISO date David last confirmed hours/details. Surfaces on the page and as schema dateModified. */
+  lastVerified?: string;
   schemaType: SchemaType;
   /** Google Place ID. Null for venues without one (e.g. the Village Green). */
   placeId: string | null;
@@ -109,11 +123,27 @@ export function popularityLabel(googleRating: string): PopularityLabel | null {
   return null;
 }
 
+/** Is `date` within the operating season? No season = always in season. */
+export function isInSeason(season: Season | undefined | null, date: Date = new Date()): boolean {
+  if (!season) return true;
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const md = `${mm}-${dd}`;
+  // Zero-padded MM-DD compares correctly as strings.
+  if (season.opens <= season.closes) {
+    return md >= season.opens && md <= season.closes;
+  }
+  // Season wraps the new year (e.g. opens 11-15, closes 03-01).
+  return md >= season.opens || md <= season.closes;
+}
+
 /** Is `place` currently open? If yes, return the closing time of the active block. */
 export function isOpenNow(
   schedule: Schedule,
   now: Date = new Date(),
-): { open: true; closesAt: string } | { open: false; reason: 'closed' | 'appt' } {
+  season?: Season | null,
+): { open: true; closesAt: string } | { open: false; reason: 'closed' | 'appt' | 'season' } {
+  if (!isInSeason(season, now)) return { open: false, reason: 'season' };
   const dayKey = dayKeyFromDate(now);
   const day = schedule[dayKey];
   if (day === 'appt') return { open: false, reason: 'appt' };
@@ -194,9 +224,33 @@ export function placeLD(p: Place, baseUrl: string) {
     sameAs: [googleMapsUrl(p)],
   };
   if (p.phone) ld.telephone = p.phone;
+  if (p.lastVerified) ld.dateModified = p.lastVerified;
   const hours = placeOpeningHoursLD(p);
   if (hours.length > 0) ld.openingHoursSpecification = hours;
   return ld;
+}
+
+/**
+ * Site-wide WebSite schema. Publisher is Feed & Seed the Organization —
+ * public attribution is to the barn, not to any individual.
+ */
+export function websiteLD(baseUrl: string) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': `${baseUrl}/#website`,
+    url: `${baseUrl}/`,
+    name: 'Field Guide — Kinderhook, NY',
+    description:
+      'A curated field guide to Kinderhook, NY and the small places nearby — kept by Feed & Seed, a barn in Kinderhook.',
+    inLanguage: 'en-US',
+    publisher: {
+      '@type': 'Organization',
+      name: 'Feed & Seed',
+      url: 'https://feed-and-seed.com',
+      description: 'A barn in Kinderhook, NY.',
+    },
+  };
 }
 
 export function breadcrumbLD(p: Place, baseUrl: string) {
@@ -299,6 +353,9 @@ export const places: Place[] = [
     address: '2309 NY-203, Chatham, NY 12037',
     phone: null,
     hours: 'Thu–Fri 5–9p; Sat 12–9p; closed Sun–Wed (seasonal — closed after ~Nov 1)',
+    // Only the closing side of the season is published ("~Nov 1"); reopening
+    // varies year to year, so this stays prose rather than a Season range.
+    hoursNote: 'Seasonal — typically closes around Nov 1. Check before making the drive in early spring.',
     schedule: {
       mon: [],
       tue: [],
@@ -803,6 +860,7 @@ export const places: Place[] = [
     address: 'Village Green, Broad Street & Albany Avenue, Kinderhook, NY 12106',
     phone: null,
     hours: 'Sat 8:30a–12:30p (May–Oct)',
+    season: { opens: '05-01', closes: '10-31' },
     schedule: {
       mon: [],
       tue: [],

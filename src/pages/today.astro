@@ -23,6 +23,7 @@ const placeMeta = Object.fromEntries(
       p.slug,
       {
         schedule: p.schedule,
+        season: p.season ?? null,
         distanceKm: distanceFromCenter(p),
         uxCategory: info.uxCategory,
       },
@@ -199,11 +200,13 @@ function telHref(phone: string | null): string | null {
     dayLabels,
     type DayKey,
     type Schedule,
+    type Season,
   } from '../data/places';
   import type { UxCategory } from '../data/categories';
 
   type PlaceMeta = {
     schedule: Schedule;
+    season: Season | null;
     distanceKm: number;
     uxCategory: UxCategory;
   };
@@ -303,7 +306,7 @@ function telHref(phone: string | null): string | null {
     const m = meta[slug];
     if (!m) continue;
     const statusEl = card.querySelector<HTMLElement>('[data-status]')!;
-    const status = isOpenNow(m.schedule, now);
+    const status = isOpenNow(m.schedule, now, m.season);
 
     let bucket: Bucket;
     /** Minutes-since-now sort key, used by "Closes soonest". Lower = more imminent. */
@@ -314,6 +317,19 @@ function telHref(phone: string | null): string | null {
       statusEl.classList.add('is-open');
       bucket = 'open';
       timeKey = timeToMin(status.closesAt);
+    } else if (status.reason === 'season') {
+      const backMonth = m.season
+        ? new Date(2000, parseInt(m.season.opens.slice(0, 2), 10) - 1, 1).toLocaleDateString(
+            'en-US',
+            { month: 'long' },
+          )
+        : null;
+      statusEl.textContent = backMonth
+        ? `Closed for the season · back in ${backMonth}`
+        : 'Closed for the season';
+      statusEl.classList.add('is-closed');
+      bucket = 'closed';
+      timeKey = 99999;
     } else if (m.schedule[todayKey] === 'appt') {
       statusEl.textContent = 'By appointment · check with them';
       statusEl.classList.add('is-appt');

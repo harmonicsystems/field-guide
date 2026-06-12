@@ -3,6 +3,10 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    # Nightly rebuild so date-derived content (open today, weekend block,
+    # note expiry) stays current without anyone touching the repo.
+    - cron: '0 9 * * *' # 09:00 UTC ≈ 4–5am ET
   workflow_dispatch:
 
 permissions:

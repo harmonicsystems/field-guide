@@ -20,6 +20,7 @@ function formatPlace(p: Place, base: string): string[] {
   const walk = walkingMinutesFromCenter(p);
   if (walk !== null) meta.push(`${walk} min walk from the Village Green`);
   lines.push(`  ${meta.join('. ')}.`);
+  if (p.hoursNote) lines.push(`  ${p.hoursNote}`);
   if (p.notes) lines.push(`  ${p.notes}`);
   lines.push(`  Map: ${googleMapsUrl(p)} · Markdown: ${mdUrl}`);
   return lines;
@@ -112,6 +113,12 @@ export const GET: APIRoute = ({ site }) => {
 
   lines.push('## Tools');
   lines.push('');
+  lines.push(
+    `- [Full text export](${base}/llms-full.txt): The complete guide — every place entry, every live field note — as one Markdown file, regenerated nightly.`,
+  );
+  lines.push(
+    `- [Field notes](${base}/notes/): Short dated notes from around the village. Subscribe via [RSS](${base}/rss.xml) or [JSON Feed](${base}/feed.json).`,
+  );
   lines.push(
     `- [What's open by day](${base}/open/): Weekly hours rendered as a Gantt chart, one row per place.`,
   );

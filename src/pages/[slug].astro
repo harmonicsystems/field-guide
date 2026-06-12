@@ -1,6 +1,8 @@
 ---
+import { render } from 'astro:content';
 import Layout from '../layouts/Layout.astro';
 import Map from '../components/Map.astro';
+import { liveNotes, noteDateLabel } from '../data/fieldNotes';
 import {
   places,
   googleMapsUrl,
@@ -46,6 +48,13 @@ const walkingMins = walkingMinutesFromCenter(place);
 
 // Build-time "today" — JS hydrates the live value on load.
 const buildToday = dayKeyFromDate(new Date());
+
+// Field notes pinned to this place, newest first.
+const placeNotes = await Promise.all(
+  (await liveNotes())
+    .filter((n) => n.data.place === place.slug)
+    .map(async (note) => ({ note, Content: (await render(note)).Content })),
+);
 
 function fmt(s: string): string {
   const [h, m] = s.split(':').map(Number);
@@ -137,6 +146,28 @@ function fmtEventTime(occ: { allDay: boolean; start: Date; end: Date | null }): 
       )
     }
 
+    {
+      placeNotes.length > 0 && (
+        <section class="mb-12">
+          <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4 pb-2 border-b border-[var(--color-rule)]">
+            From the field
+          </h2>
+          <ul class="space-y-6">
+            {placeNotes.map(({ note, Content }) => (
+              <li>
+                <p class="font-sans text-xs uppercase tracking-[0.12em] text-[var(--color-muted)] tabular-nums mb-1">
+                  {noteDateLabel(note.data.date)}
+                </p>
+                <div class="prose text-[var(--color-ink)] leading-relaxed">
+                  <Content />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
     <section class="mb-12" data-hours-section data-today={buildToday}>
       <div class="flex items-baseline justify-between gap-4 mb-4 pb-2 border-b border-[var(--color-rule)]">
         <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
@@ -176,6 +207,20 @@ function fmtEventTime(occ: { allDay: boolean; start: Date; end: Date | null }): 
       <p class="mt-4 font-sans text-xs text-[var(--color-muted)] italic">
         {place.hours}
       </p>
+      {
+        place.hoursNote && (
+          <p class="mt-2 font-sans text-xs text-[var(--color-muted)]">
+            {place.hoursNote}
+          </p>
+        )
+      }
+      {
+        place.lastVerified && (
+          <p class="mt-2 font-sans text-[11px] uppercase tracking-[0.12em] text-[var(--color-muted)]">
+            Hours last verified {new Date(place.lastVerified + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </p>
+        )
+      }
     </section>
 
     {
@@ -250,7 +295,7 @@ function fmtEventTime(occ: { allDay: boolean; start: Date; end: Date | null }): 
       type="application/json"
       id="schedule-data"
       is:inline
-      set:html={JSON.stringify(place.schedule)}
+      set:html={JSON.stringify({ schedule: place.schedule, season: place.season ?? null })}
     />
 
     <footer class="mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)]">
@@ -262,11 +307,13 @@ function fmtEventTime(occ: { allDay: boolean; start: Date; end: Date | null }): 
 </Layout>
 
 <script>
-  import { isOpenNow, dayKeyFromDate, type Schedule } from '../data/places';
+  import { isOpenNow, dayKeyFromDate, type Schedule, type Season } from '../data/places';
 
   const dataEl = document.getElementById('schedule-data');
   if (dataEl) {
-    const schedule: Schedule = JSON.parse(dataEl.textContent || '{}');
+    const { schedule, season }: { schedule: Schedule; season: Season | null } = JSON.parse(
+      dataEl.textContent || '{}',
+    );
     const now = new Date();
     const todayKey = dayKeyFromDate(now);
 
@@ -278,7 +325,7 @@ function fmtEventTime(occ: { allDay: boolean; start: Date; end: Date | null }): 
     // Status badge.
     const statusEl = document.querySelector<HTMLElement>('[data-hours-status]');
     if (statusEl) {
-      const status = isOpenNow(schedule, now);
+      const status = isOpenNow(schedule, now, season);
       function fmtTime(s: string): string {
         const [h, m] = s.split(':').map(Number);
         const period = h >= 12 ? 'p' : 'a';
@@ -294,6 +341,10 @@ function fmtEventTime(occ: { allDay: boolean; start: Date; end: Date | null }): 
       } else if (status.reason === 'appt') {
         statusEl.textContent = 'By appointment';
         statusEl.classList.add('is-appt');
+        statusEl.classList.remove('hidden');
+      } else if (status.reason === 'season') {
+        statusEl.textContent = 'Closed for the season';
+        statusEl.classList.add('is-closed');
         statusEl.classList.remove('hidden');
       } else {
         statusEl.textContent = 'Closed today';

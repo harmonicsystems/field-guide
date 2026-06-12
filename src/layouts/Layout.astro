@@ -31,6 +31,8 @@ const ogImage = new URL('/og.svg', siteUrl).toString();
     <link rel="alternate" type="application/json" title="Field Guide — places (JSON)" href="/places.json" />
     <link rel="alternate" type="text/markdown" title="Field Guide — LLM index" href="/llms.txt" />
     <link rel="alternate" type="text/calendar" title="Field Guide — events (iCal)" href="/calendar.ics" />
+    <link rel="alternate" type="application/rss+xml" title="Field Guide — field notes (RSS)" href="/rss.xml" />
+    <link rel="alternate" type="application/feed+json" title="Field Guide — field notes (JSON Feed)" href="/feed.json" />
     {mdAlternate && (
       <link rel="alternate" type="text/markdown" title={`${title} (Markdown)`} href={mdAlternate} />
     )}

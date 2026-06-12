@@ -1,0 +1,74 @@
+---
+import { render } from 'astro:content';
+import Layout from '../layouts/Layout.astro';
+import { liveNotes, noteDateLabel } from '../data/fieldNotes';
+import { places } from '../data/places';
+
+const notes = await liveNotes();
+const rendered = await Promise.all(
+  notes.map(async (note) => ({
+    note,
+    Content: (await render(note)).Content,
+    place: note.data.place ? places.find((p) => p.slug === note.data.place) : undefined,
+  })),
+);
+---
+
+<Layout
+  title="Field notes from Kinderhook, NY"
+  description="Short dated notes from around Kinderhook, NY — what's in season, what changed, what we noticed this week. The guide's living layer, kept by Feed & Seed."
+>
+  <main class="max-w-2xl mx-auto px-6 py-16">
+    <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-6">
+      <a href="/" class="hover:text-[var(--color-ink)]">← Field Guide</a>
+    </p>
+
+    <header class="mb-12">
+      <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4">
+        Field notes
+      </p>
+      <h1 class="text-4xl md:text-5xl leading-tight mb-4">What we noticed.</h1>
+      <p class="text-lg text-[var(--color-muted)] leading-relaxed">
+        Short, dated, and specific. Notes expire when they stop being true.
+      </p>
+    </header>
+
+    {
+      rendered.length === 0 ? (
+        <p class="text-[var(--color-muted)] italic">
+          Nothing here yet — the first notes from the field are coming.
+        </p>
+      ) : (
+        <ul class="space-y-10">
+          {rendered.map(({ note, Content, place }) => (
+            <li id={note.id}>
+              <p class="font-sans text-xs uppercase tracking-[0.12em] text-[var(--color-muted)] tabular-nums mb-2">
+                {noteDateLabel(note.data.date)}
+                {place && (
+                  <>
+                    {' · '}
+                    <a href={`/${place.slug}/`} class="hover:text-[var(--color-accent)]">
+                      {place.name}
+                    </a>
+                  </>
+                )}
+              </p>
+              <div class="prose text-[var(--color-ink)] leading-relaxed">
+                <Content />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    <footer class="mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)]">
+      <p>
+        Subscribe:
+        <a href="/rss.xml" class="underline decoration-[var(--color-rule)]">RSS</a>
+        ·
+        <a href="/feed.json" class="underline decoration-[var(--color-rule)]">JSON Feed</a>
+      </p>
+    </footer>
+  </main>
+</Layout>

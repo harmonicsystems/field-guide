@@ -1,8 +1,10 @@
 ---
+import { render } from 'astro:content';
 import Layout from '../layouts/Layout.astro';
 import Map from '../components/Map.astro';
-import { places, collectionLD } from '../data/places';
-import { events } from '../data/events';
+import { places, collectionLD, websiteLD } from '../data/places';
+import { events, eventsInRange } from '../data/events';
+import { liveNotes, noteDateLabel } from '../data/fieldNotes';
 
 const towns = Array.from(new Set(places.map((p) => p.town)));
 const byTown = towns.map((town) => ({
@@ -12,10 +14,46 @@ const byTown = towns.map((town) => ({
 
 const siteUrl = Astro.site ?? new URL('https://field-guide.feed-and-seed.com');
 const base = siteUrl.toString().replace(/\/$/, '');
-const ld = collectionLD(places, base);
+const ld = {
+  '@context': 'https://schema.org',
+  '@graph': [websiteLD(base), collectionLD(places, base)],
+};
+
+// Latest field notes (max 5). Section renders only when there are any.
+const allNotes = await liveNotes();
+const recentNotes = await Promise.all(
+  allNotes.slice(0, 5).map(async (note) => ({
+    note,
+    Content: (await render(note)).Content,
+    place: note.data.place ? places.find((p) => p.slug === note.data.place) : undefined,
+  })),
+);
+
+// This weekend's events, computed at build time (nightly rebuild keeps it
+// honest). "This weekend" = the current Sat–Sun if we're in or before it,
+// i.e. on a Sunday it means today.
+const buildNow = new Date();
+const day = buildNow.getDay(); // 0 = Sun
+const weekendStart = new Date(buildNow);
+weekendStart.setHours(0, 0, 0, 0);
+if (day !== 0) weekendStart.setDate(weekendStart.getDate() + ((6 - day) % 7));
+const weekendEnd = new Date(weekendStart);
+weekendEnd.setDate(weekendEnd.getDate() + (day === 0 ? 0 : 1));
+weekendEnd.setHours(23, 59, 59, 999);
+const weekendEvents = eventsInRange(events, weekendStart, weekendEnd).slice(0, 6);
+
+function fmtWeekendDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+function weekendEventPlace(placeSlug: string | undefined): string | null {
+  if (!placeSlug) return null;
+  return places.find((p) => p.slug === placeSlug)?.name ?? null;
+}
 
 // Slim payloads for the status-indicator client script.
-const statusSchedules = Object.fromEntries(places.map((p) => [p.slug, p.schedule]));
+const statusSchedules = Object.fromEntries(
+  places.map((p) => [p.slug, { schedule: p.schedule, season: p.season ?? null }]),
+);
 ---
 
 <Layout
@@ -51,6 +89,70 @@ const statusSchedules = Object.fromEntries(places.map((p) => [p.slug, p.schedule
       <a href="/calendar/" class="hover:text-[var(--color-accent)]">What's happening →</a>
       <a href="/today/" class="hover:text-[var(--color-accent)]">Larger type →</a>
     </p>
+
+    {
+      recentNotes.length > 0 && (
+        <section class="mb-16">
+          <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4 pb-2 border-b border-[var(--color-rule)]">
+            Field notes
+          </h2>
+          <ul class="space-y-6">
+            {recentNotes.map(({ note, Content, place }) => (
+              <li>
+                <p class="font-sans text-xs uppercase tracking-[0.12em] text-[var(--color-muted)] tabular-nums mb-1">
+                  {noteDateLabel(note.data.date)}
+                  {place && (
+                    <>
+                      {' · '}
+                      <a href={`/${place.slug}/`} class="hover:text-[var(--color-accent)]">
+                        {place.name}
+                      </a>
+                    </>
+                  )}
+                </p>
+                <div class="prose text-[var(--color-ink)] leading-relaxed">
+                  <Content />
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p class="mt-6 font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+            <a href="/notes/" class="hover:text-[var(--color-accent)]">All notes →</a>
+          </p>
+        </section>
+      )
+    }
+
+    {
+      weekendEvents.length > 0 && (
+        <section class="mb-16">
+          <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4 pb-2 border-b border-[var(--color-rule)]">
+            This weekend
+          </h2>
+          <ul class="space-y-3">
+            {weekendEvents.map((occ) => (
+              <li>
+                <a
+                  href={occ.event.url ?? '/calendar/'}
+                  class="block hover:text-[var(--color-accent)] transition-colors"
+                >
+                  <div class="font-sans text-xs uppercase tracking-[0.12em] text-[var(--color-muted)] tabular-nums">
+                    {fmtWeekendDate(occ.start)}
+                    {weekendEventPlace(occ.event.placeSlug) && (
+                      <> · {weekendEventPlace(occ.event.placeSlug)}</>
+                    )}
+                  </div>
+                  <div class="text-base mt-1">{occ.event.title}</div>
+                </a>
+              </li>
+            ))}
+          </ul>
+          <p class="mt-6 font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+            <a href="/open/" class="hover:text-[var(--color-accent)]">Weekend hours →</a>
+          </p>
+        </section>
+      )
+    }
 
     {
       byTown.map(({ town, items }) => (
@@ -109,10 +211,10 @@ const statusSchedules = Object.fromEntries(places.map((p) => [p.slug, p.schedule
 </Layout>
 
 <script>
-  import { isOpenNow, type Schedule } from '../data/places';
+  import { isOpenNow, type Schedule, type Season } from '../data/places';
   import { eventsInRange, type FieldEvent } from '../data/events';
 
-  const schedules: Record<string, Schedule> = JSON.parse(
+  const schedules: Record<string, { schedule: Schedule; season: Season | null }> = JSON.parse(
     document.getElementById('status-schedules')!.textContent || '{}',
   );
   const allEvents: FieldEvent[] = JSON.parse(
@@ -140,9 +242,9 @@ const statusSchedules = Object.fromEntries(places.map((p) => [p.slug, p.schedule
 
   document.querySelectorAll<HTMLElement>('li[data-slug]').forEach((li) => {
     const slug = li.dataset.slug!;
-    const schedule = schedules[slug];
-    if (schedule) {
-      const status = isOpenNow(schedule, now);
+    const entry = schedules[slug];
+    if (entry) {
+      const status = isOpenNow(entry.schedule, now, entry.season);
       if (status.open) {
         const badge = li.querySelector<HTMLElement>('[data-status-open]');
         if (badge) {
