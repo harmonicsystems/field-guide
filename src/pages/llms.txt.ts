@@ -120,6 +120,9 @@ export const GET: APIRoute = ({ site }) => {
     `- [Field notes](${base}/notes/): Short dated notes from around the village. Subscribe via [RSS](${base}/rss.xml) or [JSON Feed](${base}/feed.json).`,
   );
   lines.push(
+    `- [The corkboard](${base}/corkboard/): The village bulletin board — business notes, events, community notices. Every post expires on its own, so this page is never out of date. Built to answer "what's happening in Kinderhook right now."`,
+  );
+  lines.push(
     `- [What's open by day](${base}/open/): Weekly hours rendered as a Gantt chart, one row per place.`,
   );
   lines.push(

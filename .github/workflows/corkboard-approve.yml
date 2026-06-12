@@ -1,0 +1,77 @@
+name: Corkboard — publish approved post
+
+# Moderation is one click: apply the "approved" label to a corkboard issue.
+# This converts the issue to a content file, commits it, triggers a deploy,
+# and closes the issue with a confirmation. Rejection needs no action at
+# all — just close the issue.
+#
+# Note: the commit is made with GITHUB_TOKEN, whose pushes deliberately do
+# NOT trigger the on-push deploy (GitHub's recursion guard) — so this
+# workflow dispatches deploy.yml explicitly, which IS exempt from the guard.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+jobs:
+  publish:
+    if: >-
+      github.event.label.name == 'approved' &&
+      contains(github.event.issue.labels.*.name, 'corkboard')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Convert issue to corkboard post
+        id: convert
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set +e
+          OUTPUT=$(node scripts/corkboard-from-issue.mjs)
+          STATUS=$?
+          set -e
+          echo "$OUTPUT"
+          {
+            echo "summary<<EOF"
+            echo "$OUTPUT"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          exit $STATUS
+
+      - name: Commit the post
+        run: |
+          git config user.name "corkboard-bot"
+          git config user.email "noreply@feed-and-seed.com"
+          git add src/content/corkboard
+          git commit -m "Corkboard: post from issue #${{ github.event.issue.number }}"
+          git push
+
+      - name: Trigger deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --repo "$GITHUB_REPOSITORY"
+
+      - name: Confirm on the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue close ${{ github.event.issue.number }} \
+            --repo "$GITHUB_REPOSITORY" \
+            --comment "Pinned to the board — it comes down on ${{ steps.convert.outputs.expires }}, on its own. Thanks for posting. https://field-guide.feed-and-seed.com/corkboard/"
+
+      - name: Report validation failure on the issue
+        if: failure() && steps.convert.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "Couldn't post this one as-is: ${{ steps.convert.outputs.summary }}"

@@ -3,6 +3,11 @@ import { places } from '../data/places';
 import { placeMarkdown } from '../data/placeMarkdown';
 import { landmarks } from '../data/landmarks';
 import { liveNotes, noteDateLabel } from '../data/fieldNotes';
+import {
+  livePosts,
+  corkboardCategoryOrder,
+  corkboardCategoryLabels,
+} from '../data/corkboard';
 
 export const prerender = true;
 
@@ -50,6 +55,27 @@ export const GET: APIRoute = async ({ site }) => {
       lines.push(`### ${label}`);
       lines.push('');
       lines.push((note.body ?? '').trim());
+      lines.push('');
+    }
+  }
+
+  const posts = await livePosts(now);
+  if (posts.length > 0) {
+    lines.push('## The corkboard (current notices)');
+    lines.push('');
+    lines.push(
+      `Community bulletin board, human-moderated. Every post expires on its own; everything below is current as of this build. Live page: ${base}/corkboard/`,
+    );
+    lines.push('');
+    for (const cat of corkboardCategoryOrder) {
+      const inCat = posts.filter((p) => p.data.category === cat);
+      if (inCat.length === 0) continue;
+      lines.push(`### ${corkboardCategoryLabels[cat]}`);
+      lines.push('');
+      for (const post of inCat) {
+        const expires = post.data.expires.toISOString().slice(0, 10);
+        lines.push(`- ${(post.body ?? '').trim()} — *${post.data.from}* (until ${expires})`);
+      }
       lines.push('');
     }
   }

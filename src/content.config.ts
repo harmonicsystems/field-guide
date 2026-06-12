@@ -31,4 +31,47 @@ const notes = defineCollection({
   }),
 });
 
-export const collections = { notes };
+const MAX_POST_DAYS = 60;
+
+/**
+ * Corkboard posts — the village bulletin board that cleans itself. One
+ * markdown file per post in src/content/corkboard/, usually created by the
+ * corkboard-approve workflow from an approved GitHub issue:
+ *
+ *   ---
+ *   posted: 2026-06-12
+ *   expires: 2026-06-26   # REQUIRED — the whole point. Max 60 days out.
+ *   category: business    # business | event | community
+ *   from: "Samascott's Garden Market"
+ *   place: samascotts     # optional — surfaces on that place's page
+ *   ---
+ *   Strawberries are in. Pick-your-own opens Saturday.
+ *
+ * Body is capped at 280 characters (enforced by seo-check; the lighter the
+ * unit, the more businesses will actually use it).
+ */
+const corkboard = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/corkboard' }),
+  schema: z
+    .object({
+      posted: z.coerce.date(),
+      expires: z.coerce.date(),
+      category: z.enum(['business', 'event', 'community']),
+      from: z.string().min(1),
+      place: z
+        .string()
+        .optional()
+        .refine((slug) => slug === undefined || placeSlugs.has(slug), {
+          message: 'place must match a slug in src/data/places.ts',
+        }),
+    })
+    .refine((d) => d.expires.getTime() >= d.posted.getTime(), {
+      message: 'expires must be on or after posted',
+    })
+    .refine(
+      (d) => d.expires.getTime() - d.posted.getTime() <= MAX_POST_DAYS * 24 * 60 * 60 * 1000,
+      { message: `posts may live at most ${MAX_POST_DAYS} days — shorter is the point` },
+    ),
+});
+
+export const collections = { notes, corkboard };

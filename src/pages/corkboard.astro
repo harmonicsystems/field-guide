@@ -1,0 +1,206 @@
+---
+import { render } from 'astro:content';
+import Layout from '../layouts/Layout.astro';
+import {
+  livePosts,
+  corkboardCategoryOrder,
+  corkboardCategoryLabels,
+  postDateLabel,
+  comesDownLabel,
+} from '../data/corkboard';
+import { places } from '../data/places';
+
+const posts = await livePosts();
+const rendered = await Promise.all(
+  posts.map(async (post) => ({
+    post,
+    Content: (await render(post)).Content,
+    place: post.data.place ? places.find((p) => p.slug === post.data.place) : undefined,
+  })),
+);
+const byCategory = corkboardCategoryOrder
+  .map((cat) => ({
+    cat,
+    label: corkboardCategoryLabels[cat],
+    items: rendered.filter(({ post }) => post.data.category === cat),
+  }))
+  .filter((g) => g.items.length > 0);
+
+const asOf = new Date().toLocaleDateString('en-US', {
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+});
+
+const submitUrl =
+  'https://github.com/harmonicsystems/field-guide/issues/new?template=corkboard-post.yml';
+---
+
+<Layout
+  title="Kinderhook corkboard — village notices that expire"
+  description="The village bulletin board for Kinderhook, NY — business notes, events, and community notices. Every post expires on its own; the board is never out of date."
+>
+  <main class="max-w-2xl mx-auto px-6 py-16 print:max-w-none print:px-0 print:py-0">
+    <p class="no-print font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-6">
+      <a href="/" class="hover:text-[var(--color-ink)]">← Field Guide</a>
+    </p>
+
+    <header class="mb-12">
+      <p class="no-print font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4">
+        The corkboard
+      </p>
+      <div class="print-poster-head">
+        <div>
+          <h1 class="text-4xl md:text-5xl leading-tight mb-4">
+            Pinned<span class="text-[var(--color-muted)]">,</span> for now.
+          </h1>
+          <p class="text-lg text-[var(--color-muted)] leading-relaxed">
+            Notes from the businesses and neighbors of Kinderhook. Every post
+            comes down on its own — the board is never out of date.
+          </p>
+        </div>
+        <div class="print-only print-qr">
+          <img src="/corkboard-qr.svg" alt="QR code for field-guide.feed-and-seed.com/corkboard" width="110" height="110" />
+          <p>field-guide.feed-and-seed.com/corkboard</p>
+        </div>
+      </div>
+      <p class="print-only font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mt-2">
+        As of {asOf}
+      </p>
+    </header>
+
+    {
+      byCategory.length === 0 ? (
+        <p class="text-[var(--color-muted)] italic mb-12">
+          Nothing pinned right now. Posts clear themselves the day after they
+          lapse — that's the point.
+        </p>
+      ) : (
+        <div class="board">
+          {byCategory.map(({ label, items }) => (
+            <section class="mb-12 board-section">
+              <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4 pb-2 border-b border-[var(--color-rule)]">
+                {label}
+              </h2>
+              <ul class="space-y-6">
+                {items.map(({ post, Content, place }) => (
+                  <li class="board-post" id={post.id}>
+                    <div class="prose text-[var(--color-ink)] leading-relaxed">
+                      <Content />
+                    </div>
+                    <p class="font-sans text-xs uppercase tracking-[0.12em] text-[var(--color-muted)] tabular-nums mt-2">
+                      {place ? (
+                        <a href={`/${place.slug}/`} class="hover:text-[var(--color-accent)]">
+                          {post.data.from}
+                        </a>
+                      ) : (
+                        post.data.from
+                      )}
+                      {' · '}
+                      {postDateLabel(post.data.posted)}
+                      {' · '}
+                      <span class="text-[var(--color-accent)]">
+                        {comesDownLabel(post.data.expires)}
+                      </span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )
+    }
+
+    <section class="no-print mt-16 pt-8 border-t border-[var(--color-rule)]">
+      <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4">
+        Pin something
+      </h2>
+      <p class="text-[var(--color-muted)] leading-relaxed mb-4">
+        One sentence or two, 280 characters, up to 60 days. Business notes,
+        events, community notices. We read everything before it goes up.
+      </p>
+      <p class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] flex flex-wrap gap-x-6 gap-y-2">
+        <a href={submitUrl} rel="noopener" class="hover:text-[var(--color-accent)]">Submit a note →</a>
+        <button type="button" id="print-board" class="uppercase tracking-[0.2em] hover:text-[var(--color-accent)] cursor-pointer">
+          Print this board →
+        </button>
+      </p>
+    </section>
+
+    <footer class="no-print mt-24 pt-8 border-t border-[var(--color-rule)] font-sans text-sm text-[var(--color-muted)]">
+      <p>
+        A project of
+        <a href="https://feed-and-seed.com" class="underline decoration-[var(--color-rule)]">Feed &amp; Seed</a
+        >, a barn in Kinderhook, NY.
+      </p>
+    </footer>
+  </main>
+</Layout>
+
+<script>
+  document.getElementById('print-board')?.addEventListener('click', () => window.print());
+</script>
+
+<style>
+  .print-only {
+    display: none;
+  }
+  #print-board {
+    font: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+  }
+
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    .print-only {
+      display: block;
+    }
+    .print-poster-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+    }
+    .print-qr {
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .print-qr p {
+      font-size: 9px;
+      margin-top: 4px;
+      font-family: var(--font-sans, sans-serif);
+    }
+    .board {
+      column-count: 2;
+      column-gap: 28px;
+    }
+    .board-section {
+      break-inside: avoid-column;
+      margin-bottom: 20px;
+    }
+    .board-post {
+      break-inside: avoid;
+    }
+    main {
+      font-size: 12px;
+    }
+    h1 {
+      font-size: 28px !important;
+      margin-bottom: 8px !important;
+    }
+    header {
+      margin-bottom: 20px !important;
+    }
+  }
+
+  @page {
+    margin: 14mm;
+  }
+</style>

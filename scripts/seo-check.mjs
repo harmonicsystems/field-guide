@@ -148,7 +148,8 @@ for (const file of htmlFiles) {
     !rel.startsWith('open/') &&
     !rel.startsWith('today/') &&
     !rel.startsWith('calendar/') &&
-    !rel.startsWith('notes/');
+    !rel.startsWith('notes/') &&
+    !rel.startsWith('corkboard/');
   if (isDetailPage) {
     const slug = rel.split('/')[0];
     const alts = findAllLinks(html, 'alternate').filter(
@@ -206,6 +207,23 @@ const mdSlugs = new Set(
 );
 for (const slug of slugs) {
   if (!mdSlugs.has(slug)) err(`Missing /${slug}.md for place "${slug}"`);
+}
+
+// Corkboard content lint — body ≤ 280 chars (frontmatter schema is enforced
+// by Astro at build; the body cap is the one rule zod can't see).
+const corkboardDir = join(ROOT, 'src', 'content', 'corkboard');
+if (existsSync(corkboardDir)) {
+  for (const name of readdirSync(corkboardDir)) {
+    if (!name.endsWith('.md')) continue;
+    const raw = readFileSync(join(corkboardDir, name), 'utf8');
+    const m = raw.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
+    const postBody = (m ? m[1] : raw).trim();
+    if (postBody.length > 280) {
+      err(
+        `corkboard/${name}: body is ${postBody.length} chars (max 280) — shorter is the point`,
+      );
+    }
+  }
 }
 
 // Report.

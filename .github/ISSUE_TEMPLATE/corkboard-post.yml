@@ -1,0 +1,51 @@
+name: Corkboard post
+description: Pin a note to the Kinderhook village corkboard. Short, dated, and it takes itself down.
+title: 'Corkboard: '
+labels: ['corkboard']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **How the board works:** one or two sentences, 280 characters max, up to 60 days on the board (two weeks if you don't say otherwise). A human reads every note before it goes up. Posts come down automatically — nobody ever has to take anything down.
+
+  - type: input
+    id: from
+    attributes:
+      label: Your name or business
+      placeholder: "Samascott's Garden Market"
+    validations:
+      required: true
+
+  - type: textarea
+    id: note
+    attributes:
+      label: The note
+      description: 280 characters max. The lighter the note, the better it works — "Strawberries are in." beats a paragraph.
+      placeholder: 'Strawberries are in. Pick-your-own opens Saturday.'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Business note
+        - Event
+        - Community
+    validations:
+      required: true
+
+  - type: input
+    id: place
+    attributes:
+      label: Which place is this about? (optional)
+      description: If it's one of the places in the guide, name it and the note will appear on that page too.
+      placeholder: "Samascott's"
+
+  - type: input
+    id: expires
+    attributes:
+      label: Take it down after (optional)
+      description: 'YYYY-MM-DD. Defaults to two weeks from posting; 60 days is the maximum. For events, use the event date.'
+      placeholder: '2026-06-28'

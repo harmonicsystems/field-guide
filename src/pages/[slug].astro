@@ -3,6 +3,7 @@ import { render } from 'astro:content';
 import Layout from '../layouts/Layout.astro';
 import Map from '../components/Map.astro';
 import { liveNotes, noteDateLabel } from '../data/fieldNotes';
+import { livePosts, comesDownLabel } from '../data/corkboard';
 import {
   places,
   googleMapsUrl,
@@ -54,6 +55,13 @@ const placeNotes = await Promise.all(
   (await liveNotes())
     .filter((n) => n.data.place === place.slug)
     .map(async (note) => ({ note, Content: (await render(note)).Content })),
+);
+
+// Live corkboard posts from this place.
+const placePosts = await Promise.all(
+  (await livePosts())
+    .filter((p) => p.data.place === place.slug)
+    .map(async (post) => ({ post, Content: (await render(post)).Content })),
 );
 
 function fmt(s: string): string {
@@ -143,6 +151,32 @@ function fmtEventTime(occ: { allDay: boolean; start: Date; end: Date | null }): 
         <p class="text-[var(--color-muted)] italic mb-12">
           A note from us is on the way.
         </p>
+      )
+    }
+
+    {
+      placePosts.length > 0 && (
+        <section class="mb-12">
+          <h2 class="font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)] mb-4 pb-2 border-b border-[var(--color-rule)]">
+            On the corkboard
+          </h2>
+          <ul class="space-y-6">
+            {placePosts.map(({ post, Content }) => (
+              <li>
+                <div class="prose text-[var(--color-ink)] leading-relaxed">
+                  <Content />
+                </div>
+                <p class="font-sans text-xs uppercase tracking-[0.12em] text-[var(--color-muted)] tabular-nums mt-1">
+                  {post.data.from} ·{' '}
+                  <span class="text-[var(--color-accent)]">{comesDownLabel(post.data.expires)}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+          <p class="mt-4 font-sans text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+            <a href="/corkboard/" class="hover:text-[var(--color-accent)]">The corkboard →</a>
+          </p>
+        </section>
       )
     }
 

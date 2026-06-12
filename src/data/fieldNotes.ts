@@ -16,9 +16,12 @@ export async function liveNotes(now: Date = new Date()): Promise<NoteEntry[]> {
 }
 
 export function noteDateLabel(d: Date): string {
+  // Frontmatter dates are UTC calendar days — format in UTC or they drift
+  // a day early (see expiry.ts).
   return d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'UTC',
   });
 }
